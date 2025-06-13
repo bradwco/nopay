@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nopay – Auth</title>
+  <link rel="stylesheet" href="../styles/auth.css" />
+</head>
+<body>
+  <div class="auth-container">
+    <div class="toggle-buttons">
+      <button id="login-tab" class="active">Login</button>
+      <button id="signup-tab">Sign Up</button>
+    </div>
+
+    <!-- Login Form -->
+    <form id="login-form" class="auth-form">
+      <h2>Login</h2>
+      <label for="login-email">Email</label>
+      <input type="email" id="login-email" required />
+
+      <label for="login-password">Password</label>
+      <input type="password" id="login-password" required />
+
+      <button type="submit">Log In</button>
+    </form>
+
+    <!-- Signup Form -->
+    <form id="signup-form" class="auth-form hidden">
+      <h2>Sign Up</h2>
+      <label for="signup-email">Email</label>
+      <input type="email" id="signup-email" required />
+
+      <label for="signup-password">Password</label>
+      <input type="password" id="signup-password" required />
+
+      <label for="confirm-password">Confirm Password</label>
+      <input type="password" id="confirm-password" required />
+
+      <button type="submit">Sign Up</button>
+    </form>
+  </div>
+
+  <script>
+    const loginTab = document.getElementById("login-tab");
+    const signupTab = document.getElementById("signup-tab");
+    const loginForm = document.getElementById("login-form");
+    const signupForm = document.getElementById("signup-form");
+
+    loginTab.addEventListener("click", () => {
+      loginTab.classList.add("active");
+      signupTab.classList.remove("active");
+      loginForm.classList.remove("hidden");
+      signupForm.classList.add("hidden");
+    });
+
+    signupTab.addEventListener("click", () => {
+      signupTab.classList.add("active");
+      loginTab.classList.remove("active");
+      signupForm.classList.remove("hidden");
+      loginForm.classList.add("hidden");
+    });
+  </script>
+</body>
+</html>
