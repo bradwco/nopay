@@ -2,7 +2,7 @@
 
 import { setupFirebaseAuthListenersAndHandlers, signOut, auth, setupProfilePageLogoutButton } from "./firebaseAuth";
 import { HOME_PAGE_URL, STARTUP_PAGE_URL, AUTH_PAGE_URL } from "./firebaseConfig";
-import { addTask, getTasks, deleteTask, getTotalProgress, incrementTaskCounter } from "./firebaseStore";
+import { addTask, getTasks, deleteTask, getTotalProgress, incrementTaskCounter, updateTask } from "./firebaseStore";
 // import { db, collection, query, where, getDocs, addDoc, doc, setDoc, serverTimestamp } from "./firebaseStore"; // Uncomment if you add Firestore logic here
 
 const profilePageHtml = `
@@ -59,32 +59,37 @@ const profilePageHtml = `
   </div>
 `;
 
-const createModalHtml = `
-  <div id="createTaskModal" class="modal">
+const editTaskModalHtml = `
+  <div id="editTaskModal" class="modal" style="display: none;">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>Create</h2>
-        <button class="modal-close-btn" id="createModalCloseBtn">&times;</button>
+        <h2>Edit Task</h2>
+        <button class="modal-close-btn" id="editModalCloseBtn">&times;</button>
       </div>
       <div class="modal-body">
+        <input type="hidden" id="editTaskId" />
         <div class="modal-field">
-          <label for="taskName">Name of task</label>
-          <input type="text" id="taskNameInput" placeholder="e.g., LeetCode, PyTorch project" />
+          <label for="editTaskNameInput">Name of task</label>
+          <input type="text" id="editTaskNameInput" placeholder="e.g., LeetCode, PyTorch project" />
         </div>
         <div class="modal-field">
-          <label for="hoursToComplete">Hours to Be Completed</label>
-          <input type="number" id="hoursToCompleteInput" placeholder="e.g., 10.5" step="0.5" />
+          <label for="editHoursToCompleteInput">Hours to Be Completed</label>
+          <input type="number" id="editHoursToCompleteInput" placeholder="e.g., 10.5" step="0.5" />
         </div>
         <div class="modal-field">
-          <label for="goalType">Goal Type</label>
-          <select id="goalTypeSelect">
+          <label for="editCurrentHoursInput">Current Hours</label>
+          <input type="number" id="editCurrentHoursInput" placeholder="e.g., 5.0" step="0.5" />
+        </div>
+        <div class="modal-field">
+          <label for="editGoalTypeSelect">Goal Type</label>
+          <select id="editGoalTypeSelect">
             <option value="weekly">Weekly</option>
             <option value="monthly">Monthly</option>
           </select>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="modal-save-btn" id="createTaskSaveBtn">Save Task</button>
+        <button class="modal-save-btn" id="editTaskSaveBtn">Save Changes</button>
       </div>
     </div>
   </div>
@@ -93,7 +98,7 @@ const createModalHtml = `
 // Define the color palette based on the provided image (outer colors)
 const taskColorPalette = [
   "#ffb6c1", // Pink
-  "#8d6e63", // Brown
+  "#a52a2a", // Brown - Corrected to match CSS #a52a2a
   "#ffeb3b", // Yellow
   "#ffa726", // Orange
   "#90ee90", // Green
@@ -102,6 +107,21 @@ const taskColorPalette = [
   "#78909c"  // Grey
 ];
 let currentTaskColorIndex = 0;
+
+// Helper to get CSS class name from hex color
+function getTaskColorClassName(hexColor) {
+  switch (hexColor) {
+    case "#ffb6c1": return "pink";
+    case "#a52a2a": return "brown"; // Mapped to corrected hex
+    case "#ffeb3b": return "yellow"; // Assuming you might add a yellow class later if needed
+    case "#ffa726": return "orange"; // Assuming orange class
+    case "#90ee90": return "green";
+    case "#64b5f6": return "blue";
+    case "#9370db": return "purple";
+    case "#78909c": return "grey"; // Assuming grey class
+    default: return "";
+  }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   const getStartedBtn = document.getElementById('getStarted');
@@ -116,6 +136,63 @@ document.addEventListener('DOMContentLoaded', () => {
   // Call the function to set up all Firebase Auth listeners and handlers
   setupFirebaseAuthListenersAndHandlers();
 
+  // Get references to content divs
+  const homeContentDiv = document.getElementById('homeContent');
+  const profileContentDiv = document.getElementById('profileContent');
+  const createTaskModal = document.getElementById('createTaskModal');
+  const editTaskModal = document.getElementById('editTaskModal'); // Get reference to the edit modal
+
+  // Setup close button listener for Create Task modal (top right X button) - attached once
+  const createModalCloseBtn = document.getElementById('createModalCloseBtn');
+  if (createModalCloseBtn) {
+    createModalCloseBtn.addEventListener('click', () => {
+      createTaskModal.style.display = 'none';
+      
+      // Ensure home content div is visible and active BEFORE rendering tasks
+      showContentSection(homeContentDiv);
+
+      console.log('Modal closed. homeContentDiv display:', homeContentDiv.style.display, 'classList:', homeContentDiv.classList.contains('active') ? 'active' : 'not active');
+      
+      if (auth.currentUser) {
+        renderHomeContent(auth.currentUser.uid); // Pass uid
+      } else {
+        console.warn('Attempted to render home content after modal close, but user not authenticated.');
+      }
+
+      // Reset navigation state to Home
+      navItems.forEach(nav => nav.classList.remove('active'));
+      homeNavLink.classList.add('active');
+      updateSliderPosition(homeNavLink);
+    });
+  }
+
+  // Setup save task button listener - attached once
+  const saveTaskBtn = document.getElementById('createTaskSaveBtn');
+  if (saveTaskBtn) {
+    saveTaskBtn.addEventListener('click', handleSaveTask);
+  }
+
+  // Setup close button listener for Edit Task modal (top right X button) - attached once
+  const editModalCloseBtn = document.getElementById('editModalCloseBtn');
+  if (editModalCloseBtn) {
+    editModalCloseBtn.addEventListener('click', () => {
+      editTaskModal.style.display = 'none';
+      // Ensure home content div is visible and active BEFORE rendering tasks
+      showContentSection(homeContentDiv); // Show home content when closing edit modal
+      if (auth.currentUser) {
+        renderHomeContent(auth.currentUser.uid); // Refresh tasks
+      } else {
+        console.warn('Attempted to render home content after edit modal close, but user not authenticated.');
+      }
+    });
+  }
+
+  // Setup save changes button listener for Edit Task modal - attached once
+  const editTaskSaveBtn = document.getElementById('editTaskSaveBtn');
+  if (editTaskSaveBtn) {
+    editTaskSaveBtn.addEventListener('click', handleEditTask); // Attach new handler for editing
+  }
+
   // Sidebar navigation logic for sliding background
   const navItems = document.querySelectorAll('.nav-item');
   const navSlider = document.querySelector('.nav-slider');
@@ -126,6 +203,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Store initial home content - this will now be the template for dynamic rendering
   const homeContentTemplate = document.getElementById('tasksDisplayArea').innerHTML;
+
+  // Helper function to show a content div and hide others
+  function showContentSection(sectionToShow) {
+      const contentSections = [homeContentDiv, profileContentDiv]; // Only manage primary content sections
+      if (createTaskModal) { // Add modal if it exists
+          contentSections.push(createTaskModal);
+      }
+
+      contentSections.forEach(section => {
+          if (section) { // Ensure the element exists
+              section.style.display = 'none'; // Hide all by default
+              section.classList.remove('active');
+          }
+      });
+
+      if (sectionToShow) {
+          sectionToShow.style.display = 'block'; // Show the desired one
+          sectionToShow.classList.add('active');
+      }
+  }
 
   function updateSliderPosition(activeItem) {
     if (activeItem && navSlider) {
@@ -148,18 +245,22 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Function to render home content
-  async function renderHomeContent() {
+  async function renderHomeContent(userId) {
+    console.log('renderHomeContent called.', new Date().toLocaleTimeString(), 'with userId:', userId);
     if (mainContent) {
       const tasksDisplayArea = document.getElementById('tasksDisplayArea');
       const totalProgressDisplay = document.querySelector('.weekly-progress .progress-bar');
       const totalProgressLabel = document.querySelector('.weekly-progress strong');
 
       if (tasksDisplayArea && totalProgressDisplay && totalProgressLabel) {
+        console.log('tasksDisplayArea content before clear:', tasksDisplayArea.innerHTML.length > 0 ? 'Has content' : 'Empty', 'Current child count:', tasksDisplayArea.childElementCount);
         tasksDisplayArea.innerHTML = ''; // Clear existing tasks
-        const currentUser = auth.currentUser;
-        if (currentUser) {
+        console.log('tasksDisplayArea content after clear:', tasksDisplayArea.innerHTML.length > 0 ? 'Has content' : 'Empty', 'Current child count:', tasksDisplayArea.childElementCount);
+        console.log('renderHomeContent - userId:', userId ? userId : 'null');
+        if (userId) {
           // Fetch and display Total Progress
-          const { success: progressSuccess, totalProgress } = await getTotalProgress(currentUser.uid);
+          const { success: progressSuccess, totalProgress } = await getTotalProgress(userId);
+          console.log('renderHomeContent - getTotalProgress success:', progressSuccess, 'totalProgress:', totalProgress);
           if (progressSuccess) {
             totalProgressLabel.textContent = `Total Progress - ${totalProgress}%`;
             totalProgressDisplay.style.setProperty('--progress-percentage', `${totalProgress}%`);
@@ -170,12 +271,15 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           // Fetch and display individual tasks
-          const { success, tasks } = await getTasks(currentUser.uid);
+          const { success, tasks } = await getTasks(userId);
+          console.log('renderHomeContent - getTasks success:', success, 'tasks length:', tasks ? tasks.length : 'null');
           if (success) {
             if (tasks.length === 0) {
               tasksDisplayArea.innerHTML = '<p style="text-align: center; color: var(--text-color-secondary);">No tasks yet. Create one!</p>';
+              console.log('renderHomeContent - No tasks found.');
             } else {
               tasks.forEach(task => {
+                const currentProgressPercentage = task.totalHours > 0 ? ((task.currentProgress || 0) / task.totalHours * 100).toFixed(0) : 0;
                 const taskCardHtml = `
                   <div class="card task">
                     <div class="task-header">
@@ -183,28 +287,73 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="task-icon-wrapper" style="background-color: ${task.taskColor};">
                           <img src="../assets/timer.png" alt="Timer Icon" />
                         </div>
-                        <span>${task.taskName} - <strong>0%</strong></span> <!-- Initial progress 0% -->
+                        <span>${task.taskName} - <strong>${currentProgressPercentage}%</strong></span> <!-- Initial progress 0% -->
                       </div>
-                      <span class="time">${task.displayId || ''} | 0 Hours / ${task.totalHours} Hours</span>
+                      <span class="time">${task.displayId || ''} | ${task.currentProgress || 0} Hours / ${task.totalHours} Hours</span>
+                      <button class="edit-task-btn" data-task-id="${task.id}">Edit</button>
                       <button class="delete-task-btn delete-task-text-btn" data-task-id="${task.id}">Delete</button>
                     </div>
-                    <div class="progress-bar" style="background-color: ${task.taskColor};"></div>
+                    <div class="progress-bar ${getTaskColorClassName(task.taskColor)}" style="--progress-percentage: ${currentProgressPercentage}%;"></div>
                   </div>
                 `;
                 tasksDisplayArea.insertAdjacentHTML('beforeend', taskCardHtml);
               });
-              // Attach event listeners to delete buttons after tasks are rendered
+              console.log('renderHomeContent - Tasks rendered. Total tasks in DOM now:', tasksDisplayArea.childElementCount);
+              // Attach event listeners to delete and edit buttons after tasks are rendered
               document.querySelectorAll('.delete-task-btn').forEach(button => {
                 button.addEventListener('click', async (event) => {
                   const taskId = event.currentTarget.dataset.taskId;
-                  const currentUser = auth.currentUser;
-                  if (currentUser && taskId) {
-                    const { success } = await deleteTask(currentUser.uid, taskId);
+                  const taskCard = event.currentTarget.closest('.card.task'); // Get the parent task card
+                  const currentUserForDelete = auth.currentUser;
+
+                  if (currentUserForDelete && taskId && taskCard) {
+                    // Start delete animation
+                    taskCard.classList.add('deleting');
+
+                    // Wait for the animation to complete before actually deleting from Firebase and DOM
+                    setTimeout(async () => {
+                      const { success } = await deleteTask(currentUserForDelete.uid, taskId);
+                      if (success) {
+                        console.log('Task deleted successfully from UI.');
+                        taskCard.remove(); // Remove from DOM after successful deletion from Firebase
+                        // Re-render home content to update total progress and ensure layout is correct
+                        renderHomeContent(currentUserForDelete.uid);
+                      } else {
+                        console.error('Failed to delete task from Firebase.');
+                        taskCard.classList.remove('deleting'); // Revert animation if deletion fails
+                      }
+                    }, 500); // Match this duration to the CSS transition duration (0.5s)
+                  }
+                });
+              });
+
+              // Add event listener for edit buttons
+              document.querySelectorAll('.edit-task-btn').forEach(button => {
+                button.addEventListener('click', async (event) => {
+                  const taskId = event.currentTarget.dataset.taskId;
+                  const currentUserForEdit = auth.currentUser;
+                  if (currentUserForEdit && taskId) {
+                    // Fetch task data
+                    const { success, tasks } = await getTasks(currentUserForEdit.uid);
                     if (success) {
-                      console.log('Task deleted successfully from UI.');
-                      renderHomeContent(); // Re-render tasks after deletion
+                      const taskToEdit = tasks.find(task => task.id === taskId);
+                      if (taskToEdit) {
+                        // Populate and show edit modal
+                        const editTaskModal = document.getElementById('editTaskModal');
+                        if (editTaskModal) {
+                          document.getElementById('editTaskId').value = taskToEdit.id;
+                          document.getElementById('editTaskNameInput').value = taskToEdit.taskName;
+                          document.getElementById('editHoursToCompleteInput').value = taskToEdit.totalHours;
+                          document.getElementById('editGoalTypeSelect').value = taskToEdit.frequency;
+                          document.getElementById('editCurrentHoursInput').value = taskToEdit.currentProgress || 0; // Populate current hours
+                          showContentSection(editTaskModal);
+                          editTaskModal.style.display = 'flex';
+                        }
+                      } else {
+                        console.error('Task not found for editing:', taskId);
+                      }
                     } else {
-                      console.error('Failed to delete task from Firebase.');
+                      console.error('Failed to fetch tasks for editing.', tasks.error);
                     }
                   }
                 });
@@ -213,9 +362,11 @@ document.addEventListener('DOMContentLoaded', () => {
           } else {
             tasksDisplayArea.innerHTML = '<p style="text-align: center; color: var(--text-color-secondary);">Error loading tasks.</p>';
             console.error('Failed to fetch tasks:', tasks.error);
+            console.log('renderHomeContent - Error loading tasks.');
           }
         } else {
           tasksDisplayArea.innerHTML = '<p style="text-align: center; color: var(--text-color-secondary);">Please log in to view tasks.</p>';
+          console.log('renderHomeContent - User not logged in (userId was null).');
         }
       }
     }
@@ -258,9 +409,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // Ensure home content is rendered if home is initially active
     if (initialActiveItem.id === 'homeNavLink') {
-      renderHomeContent();
+      // renderHomeContent(auth.currentUser ? auth.currentUser.uid : null); // Removed: now solely triggered by 'userAuthenticated' event
     }
   }
+
+  // Listen for the custom event and render home content if on home page
+  document.addEventListener('userAuthenticated', (event) => {
+    // Only render home content if the user is currently on the home page
+    if (window.location.pathname.endsWith('home.html')) {
+      console.log('User authenticated event received. Rendering home content.');
+      renderHomeContent(event.detail.uid); // Pass the userId from the event
+
+      // Ensure home content div is visible and active on authentication
+      const homeContentDiv = document.getElementById('homeContent');
+      if (homeContentDiv) {
+        homeContentDiv.style.display = 'block';
+        homeContentDiv.classList.add('active');
+      }
+
+      // Update the displayed username
+      const currentUsernameDisplay = document.getElementById('currentUsernameDisplay');
+      if (currentUsernameDisplay && event.detail.email) {
+        currentUsernameDisplay.textContent = event.detail.email; // Use email as username
+      }
+    }
+  });
 
   navItems.forEach(item => {
     item.addEventListener('click', async () => { // Made async to await Firebase calls
@@ -279,48 +452,26 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update main content based on clicked item
       const homeContentDiv = document.getElementById('homeContent');
       const profileContentDiv = document.getElementById('profileContent');
+      const createTaskModal = document.getElementById('createTaskModal');
 
-      // Hide all content sections first
-      document.querySelectorAll('.content-section').forEach(section => {
-        section.style.display = 'none';
-        section.classList.remove('active');
-      });
+      // Hide all content sections first // Removed: now handled by showContentSection
+      // document.querySelectorAll('.content-section').forEach(section => {
+      //   section.style.display = 'none';
+      //   section.classList.remove('active');
+      // });
 
       if (mainContent) {
         switch (item.id) {
           case 'homeNavLink':
-            homeContentDiv.style.display = 'block';
-            homeContentDiv.classList.add('active');
-            renderHomeContent();
+            showContentSection(homeContentDiv);
+            // renderHomeContent(auth.currentUser ? auth.currentUser.uid : null); // Removed: now solely triggered by 'userAuthenticated' event
             break;
           case 'createNavLink':
-            // Append and display the modal
-            if (!document.getElementById('createTaskModal')) {
-              document.body.insertAdjacentHTML('beforeend', createModalHtml);
-            }
-            document.getElementById('createTaskModal').style.display = 'flex';
-            
-            // Setup close button listener (top right X button)
-            document.getElementById('createModalCloseBtn').addEventListener('click', () => {
-                document.getElementById('createTaskModal').style.display = 'none';
-                renderHomeContent(); // Ensure home content is visible after modal closes
-
-                // Reset navigation state to Home
-                navItems.forEach(nav => nav.classList.remove('active'));
-                homeNavLink.classList.add('active');
-                updateSliderPosition(homeNavLink);
-            });
-
-            const saveTaskBtn = document.getElementById('createTaskSaveBtn'); // Corrected ID for modal's save button
-            if (saveTaskBtn) {
-              // Remove previous listener to prevent multiple bindings
-              saveTaskBtn.removeEventListener('click', handleSaveTask);
-              saveTaskBtn.addEventListener('click', handleSaveTask);
-            }
+            showContentSection(createTaskModal); // Show modal instead of other content
+            createTaskModal.style.display = 'flex'; // Ensure it's flex for modal display
             break;
           case 'profileNavLink':
-            profileContentDiv.style.display = 'block';
-            profileContentDiv.classList.add('active');
+            showContentSection(profileContentDiv);
             profileContentDiv.innerHTML = profilePageHtml; // Render profile content directly into its container
             // Setup listeners for dynamically loaded profile content
             setupProfilePageLogoutButton();
@@ -348,7 +499,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const taskColor = taskColorPalette[currentTaskColorIndex];
     currentTaskColorIndex = (currentTaskColorIndex + 1) % taskColorPalette.length;
 
-    const currentUser = auth.currentUser;
+    const currentUser = auth.currentUser; // Get current user at the beginning of the function
+    console.log('handleSaveTask - currentUser:', currentUser ? currentUser.uid : 'null');
     if (currentUser) {
       // Increment task counter and get the new count
       const { success: counterSuccess, newCount } = await incrementTaskCounter(currentUser.uid);
@@ -378,11 +530,22 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('hoursToCompleteInput').value = '';
         document.getElementById('goalTypeSelect').value = 'weekly'; // Reset to weekly
 
-        // Automatically switch to Home tab and display tasks
-        const homeNavLink = document.getElementById('homeNavLink');
-        if (homeNavLink) {
-            homeNavLink.click(); // Simulate click to trigger navigation and re-render
+        // Hide the modal after successful save
+        if (createTaskModal) {
+          createTaskModal.style.display = 'none';
         }
+
+        // Ensure Home content div is visible and active BEFORE rendering tasks
+        showContentSection(homeContentDiv);
+
+        // Refresh tasks on the home page after successful save
+        renderHomeContent(currentUser.uid); // Re-enabled: refresh tasks after save
+
+        // Ensure Home tab is active and slider is updated
+        navItems.forEach(nav => nav.classList.remove('active'));
+        homeNavLink.classList.add('active');
+        updateSliderPosition(homeNavLink);
+
       } else {
         alert('Failed to save task. Please try again.');
       }
@@ -391,9 +554,52 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Handle task editing logic
+  async function handleEditTask() {
+    const taskId = document.getElementById('editTaskId').value;
+    const taskName = document.getElementById('editTaskNameInput').value;
+    const totalHours = parseFloat(document.getElementById('editHoursToCompleteInput').value);
+    const currentHours = parseFloat(document.getElementById('editCurrentHoursInput').value);
+    const frequency = document.getElementById('editGoalTypeSelect').value;
+
+    if (!taskId || !taskName || isNaN(totalHours) || totalHours <= 0 || isNaN(currentHours) || currentHours < 0) {
+      alert('Please fill in all task details correctly, including current hours.');
+      return;
+    }
+
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      const updatedData = {
+        taskName,
+        totalHours,
+        currentProgress: currentHours, // Update current progress
+        frequency,
+      };
+
+      const { success } = await updateTask(currentUser.uid, taskId, updatedData);
+      if (success) {
+        alert('Task updated successfully!');
+        // Hide the modal
+        editTaskModal.style.display = 'none';
+        // Refresh tasks on the home page
+        showContentSection(homeContentDiv); // Show home content when closing edit modal
+        renderHomeContent(currentUser.uid);
+
+        // Ensure Home tab is active and slider is updated
+        navItems.forEach(nav => nav.classList.remove('active'));
+        homeNavLink.classList.add('active');
+        updateSliderPosition(homeNavLink);
+      } else {
+        alert('Failed to update task. Please try again.');
+      }
+    } else {
+      alert('You must be logged in to edit a task.');
+    }
+  }
+
   // Initial call to render home content when the page loads, if home is the default active tab
   // This ensures tasks are loaded on initial page access.
-  renderHomeContent();
+  // renderHomeContent(); // Removed to prevent duplicate renders on page load
 
   // Initial call to setupThemeToggle to apply saved theme and attach listener if on profile page initially
   // This ensures the toggle is functional even if the profile page is the first viewed page after reload

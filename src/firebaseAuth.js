@@ -72,6 +72,10 @@ function setupFirebaseAuthListenersAndHandlers() {
     const currentPath = window.location.pathname;
     if (user && user.emailVerified) {
       console.log("User is authenticated:", user.uid);
+      // Dispatch custom event for authenticated user
+      const event = new CustomEvent('userAuthenticated', { detail: { uid: user.uid, email: user.email } });
+      document.dispatchEvent(event);
+
       // Redirect to home if on startup or auth page
       if (currentPath === STARTUP_PAGE_URL || currentPath === AUTH_PAGE_URL) {
         window.location.href = HOME_PAGE_URL;

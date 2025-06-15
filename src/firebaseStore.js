@@ -9,6 +9,7 @@ export const addTask = async (userId, taskData) => {
     const userTasksCollectionRef = collection(db, 'Tasks', userId, 'UserTasks');
     await addDoc(userTasksCollectionRef, taskData);
     console.log('Task added successfully for user:', userId);
+    await calculateAndStoreTotalProgress(userId); // Recalculate total progress after adding
     return { success: true };
   } catch (error) {
     console.error('Error adding task:', error);
@@ -40,9 +41,24 @@ export const deleteTask = async (userId, taskId) => {
     const taskDocRef = doc(db, 'Tasks', userId, 'UserTasks', taskId);
     await deleteDoc(taskDocRef);
     console.log('Task deleted successfully:', taskId);
+    await calculateAndStoreTotalProgress(userId); // Recalculate total progress after deleting
     return { success: true };
   } catch (error) {
     console.error('Error deleting task:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Function to update an existing task
+export const updateTask = async (userId, taskId, updatedData) => {
+  try {
+    const taskDocRef = doc(db, 'Tasks', userId, 'UserTasks', taskId);
+    await setDoc(taskDocRef, updatedData, { merge: true }); // Use setDoc with merge to update specific fields
+    console.log('Task updated successfully:', taskId);
+    await calculateAndStoreTotalProgress(userId); // Recalculate total progress after updating
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating task:', error);
     return { success: false, error: error.message };
   }
 };
@@ -96,6 +112,37 @@ export const incrementTaskCounter = async (userId) => {
     return { success: true, newCount };
   } catch (error) {
     console.error('Error incrementing task counter:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Function to calculate and update the overall total progress
+export const calculateAndStoreTotalProgress = async (userId) => {
+  try {
+    const { success: tasksSuccess, tasks } = await getTasks(userId); // Use existing getTasks
+    let averageProgress = 0;
+
+    if (tasksSuccess && tasks.length > 0) {
+      const totalPercentageSum = tasks.reduce((sum, task) => {
+        const progress = task.currentProgress || 0;
+        const total = task.totalHours || 0;
+        const percentage = total > 0 ? (progress / total) * 100 : 0;
+        return sum + percentage;
+      }, 0);
+      averageProgress = (totalPercentageSum / tasks.length).toFixed(0); // Calculate average and round
+    }
+
+    // Update the totalProgress in the user's document
+    const { success: updateSuccess } = await updateTotalProgress(userId, parseFloat(averageProgress)); // Ensure it's a number
+    if (updateSuccess) {
+      console.log('Total progress calculated and stored successfully for user:', userId, '- Average:', averageProgress);
+      return { success: true, totalProgress: parseFloat(averageProgress) };
+    } else {
+      console.error('Failed to store total progress for user:', userId);
+      return { success: false, error: 'Failed to store total progress' };
+    }
+  } catch (error) {
+    console.error('Error calculating and storing total progress:', error);
     return { success: false, error: error.message };
   }
 };

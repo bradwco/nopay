@@ -170,7 +170,25 @@ body {
   box-shadow: var(--shadow);
   margin-bottom: 1rem;
   transition: background-color var(--theme-transition-duration) ease,
-              box-shadow var(--theme-transition-duration) ease;
+              box-shadow var(--theme-transition-duration) ease,
+              transform 0.3s ease-out, /* For pop-out/in animation */
+              opacity 0.3s ease-out,  /* For fade-out/in animation */
+              height 0.5s ease-out, /* For smooth collapse */
+              padding 0.5s ease-out, /* For smooth collapse */
+              margin 0.5s ease-out; /* For smooth collapse */
+}
+
+.card.deleting {
+  opacity: 0; /* Fade out */
+  transform: scale(0.9); /* Shrink slightly as it fades */
+  height: 0; /* Collapse height */
+  padding-top: 0; /* Remove padding */
+  padding-bottom: 0; /* Remove padding */
+  margin-top: 0; /* Remove margin */
+  margin-bottom: 0; /* Remove margin */
+  overflow: hidden; /* Hide overflowing content during collapse */
+  pointer-events: none; /* Prevent interaction during animation */
+  transition: all 0.5s ease-out; /* Apply a comprehensive transition for the deletion animation */
 }
 
 .card-header,

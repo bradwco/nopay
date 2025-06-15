@@ -32,7 +32,7 @@
     <!-- Main Content -->
     <main class="main-content">
       <div class="top-bar">
-        <p>Current User &gt; <strong>bradwco</strong></p>
+        <p>Current User &gt; <strong id="currentUsernameDisplay">bradwco</strong></p>
       </div>
 
       <div id="homeContent" class="content-section active">
@@ -56,6 +56,71 @@
 
       <div id="profileContent" class="content-section">
         <!-- Profile page content will be dynamically loaded here by index.js -->
+      </div>
+
+      <!-- Create Task Modal - Always in DOM but hidden by default -->
+      <div id="createTaskModal" class="modal" style="display: none;">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2>Create</h2>
+            <button class="modal-close-btn" id="createModalCloseBtn">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="modal-field">
+              <label for="taskName">Name of task</label>
+              <input type="text" id="taskNameInput" placeholder="e.g., LeetCode, PyTorch project" />
+            </div>
+            <div class="modal-field">
+              <label for="hoursToComplete">Hours to Be Completed</label>
+              <input type="number" id="hoursToCompleteInput" placeholder="e.g., 10.5" step="0.5" />
+            </div>
+            <div class="modal-field">
+              <label for="goalType">Goal Type</label>
+              <select id="goalTypeSelect">
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="modal-save-btn" id="createTaskSaveBtn">Save Task</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit Task Modal - Always in DOM but hidden by default -->
+      <div id="editTaskModal" class="modal" style="display: none;">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2>Edit Task</h2>
+            <button class="modal-close-btn" id="editModalCloseBtn">&times;</button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="editTaskId" />
+            <div class="modal-field">
+              <label for="editTaskNameInput">Name of task</label>
+              <input type="text" id="editTaskNameInput" placeholder="e.g., LeetCode, PyTorch project" />
+            </div>
+            <div class="modal-field">
+              <label for="editHoursToCompleteInput">Hours to Be Completed</label>
+              <input type="number" id="editHoursToCompleteInput" placeholder="e.g., 10.5" step="0.5" />
+            </div>
+            <div class="modal-field">
+              <label for="editCurrentHoursInput">Current Hours</label>
+              <input type="number" id="editCurrentHoursInput" placeholder="e.g., 5.0" step="0.5" />
+            </div>
+            <div class="modal-field">
+              <label for="editGoalTypeSelect">Goal Type</label>
+              <select id="editGoalTypeSelect">
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="modal-save-btn" id="editTaskSaveBtn">Save Changes</button>
+          </div>
+        </div>
       </div>
     </main> 
   </div>
