@@ -5,8 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Nopay – Home</title>
   <link rel="stylesheet" href="../styles/home.css" />
-  <script src="../dist/auth.bundle.js"></script>
-  <script src="../dist/firebase.bundle.js"></script>
+  <script src="../dist/index.bundle.js"></script>
 </head>
 <body>
   <div class="container">
@@ -14,15 +13,16 @@
     <aside class="sidebar">
       <img src="../assets/nopaylogo.png" class="logo" />
       <nav class="nav">
-        <button class="nav-item active">
+        <div class="nav-slider"></div>
+        <button class="nav-item active" id="homeNavLink">
           <img src="../assets/home-icon-silhouette.png" />
           Home
         </button>
-        <button class="nav-item">
+        <button class="nav-item" id="createNavLink">
           <img src="../assets/writing.png" />
           Create
         </button>
-        <button class="nav-item">
+        <button class="nav-item" id="profileNavLink">
           <img src="../assets/user.png" />
           Profile
         </button>
@@ -33,60 +33,29 @@
     <main class="main-content">
       <div class="top-bar">
         <p>Current User &gt; <strong>bradwco</strong></p>
-        <button id="logoutBtn"> Temp Logout</button>
       </div>
 
-      <div class="card weekly-progress">
-        <div class="card-header">
-          <img src="../assets/color-palette.png" />
-          <span><strong>Weekly Progress</strong></span>
-        </div>
-        <div class="progress-bar blue"></div>
-      </div>
-
-      <!-- Task Cards -->
-      <div class="card task">
-        <div class="task-header">
-          <div class="task-left">
-            <img src="../assets/timer.png" />
-            <span>LeetCode - <strong>65%</strong></span>
+      <div id="homeContent" class="content-section active">
+        <div class="card weekly-progress">
+          <div class="card-header">
+            <div class="progress-label">
+              <img src="../assets/color-palette.png" alt="Total Progress Icon" class="weekly-progress-icon" />
+              <span><strong>Total Progress</strong></span>
+            </div>
+            <div class="progress-bar blue" style="--progress-percentage: 75%;"></div>
           </div>
-          <span class="time">3.75 Hours / 10.5 Hours</span>
         </div>
-        <div class="progress-bar purple"></div>
+
+        <!-- Task Cards will be dynamically loaded here -->
+        <div id="tasksDisplayArea">
+          <!-- Existing static task cards will be replaced by dynamic ones -->
+          <!-- For now, I'll keep them as a reference to the structure -->
+
+        </div>
       </div>
 
-      <div class="card task">
-        <div class="task-header">
-          <div class="task-left">
-            <img src="../assets/timer.png" />
-            <span>PyTorch - <strong>80%</strong></span>
-          </div>
-          <span class="time">3.75 Hours / 10.5 Hours</span>
-        </div>
-        <div class="progress-bar pink"></div>
-      </div>
-
-      <div class="card task">
-        <div class="task-header">
-          <div class="task-left">
-            <img src="../assets/timer.png" />
-            <span>Portfolio Site - <strong>20%</strong></span>
-          </div>
-          <span class="time">3.75 Hours / 10.5 Hours</span>
-        </div>
-        <div class="progress-bar green"></div>
-      </div>
-
-      <div class="card task">
-        <div class="task-header">
-          <div class="task-left">
-            <img src="../assets/timer.png" />
-            <span>Vlog Editing - <strong>10%</strong></span>
-          </div>
-          <span class="time">3.75 Hours / 10.5 Hours</span>
-        </div>
-        <div class="progress-bar brown"></div>
+      <div id="profileContent" class="content-section">
+        <!-- Profile page content will be dynamically loaded here by index.js -->
       </div>
     </main> 
   </div>
