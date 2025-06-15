@@ -72,19 +72,19 @@ function setupFirebaseAuthListenersAndHandlers() {
     const currentPath = window.location.pathname;
     if (user && user.emailVerified) {
       console.log("User is authenticated:", user.uid);
-      // Dispatch custom event for authenticated user
+      // Dispatch custom event for authenticated user immediately
       const event = new CustomEvent('userAuthenticated', { detail: { uid: user.uid, email: user.email } });
       document.dispatchEvent(event);
 
       // Redirect to home if on startup or auth page
-      if (currentPath === STARTUP_PAGE_URL || currentPath === AUTH_PAGE_URL) {
+      if (currentPath.endsWith(STARTUP_PAGE_URL) || currentPath.endsWith(AUTH_PAGE_URL)) {
         window.location.href = HOME_PAGE_URL;
         alert("Login Success!");
       }
     } else {
       console.log("User is NOT authenticated.");
       // If not authenticated and on home page, redirect to startup
-      if (currentPath === HOME_PAGE_URL) {
+      if (currentPath.endsWith(HOME_PAGE_URL)) {
         window.location.href = STARTUP_PAGE_URL;
       }
     }

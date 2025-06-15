@@ -11,7 +11,8 @@
   --text-color-secondary: #666;
   --border-color: #e0e0e0;
   --accent-color-blue: #007bff;
-  --accent-color-red: #dc3545;
+  --accent-color-red: #ff8c94; /* Pastel red */
+  --accent-color-green: #a8e6cf; /* Pastel green */
 
   /* New Toggle Specific Variables (Adapted to px) */
   --toggle-height-val: 40px; /* Reduced for better fit */
@@ -42,13 +43,11 @@ body.dark-mode {
   --modal-glow-color: rgba(170, 150, 255, 0.2); /* Purplish glow for dark mode */
 }
 
-body {
-  margin: 0;
-  font-family: 'Segoe UI', sans-serif;
-  background: var(--bg-primary);
-  color: var(--text-color-primary);
-  transition: background-color var(--theme-transition-duration) ease,
-              color var(--theme-transition-duration) ease;
+body, html {
+  background: radial-gradient(ellipse at bottom, #2a3746 0%, #040a1d 100%) !important;
+  min-height: 100vh;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  position: relative;
 }
 
 .container {
@@ -103,18 +102,20 @@ body {
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
   background: none;
   border: none;
   color: white;
-  font-size: 1rem;
+  font-size: 1.05rem;
+  font-weight: 500;
   text-align: left;
   border-radius: var(--radius);
   cursor: pointer;
   position: relative;
   z-index: 1;
   transition: color 0.2s ease-in-out;
+  white-space: nowrap;
 }
 
 .nav-item img {
@@ -130,31 +131,79 @@ body {
   color: white;
 }
 
-/* Delete button styling */
-.delete-task-text-btn {
-  background-color: #ffcccc; /* Light red */
-  color: #cc0000; /* Darker red text */
-  border: 1px solid #ff9999;
-  padding: 0.3rem 0.6rem;
-  border-radius: 5px;
+/* Glassy/Foggy Icon Button Style */
+.glassy-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  border: 1px solid rgba(255,255,255,0.25);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: background 0.2s, box-shadow 0.2s, border 0.2s;
   cursor: pointer;
-  font-size: 0.8rem;
-  margin-left: 1rem; /* Adjust as needed for spacing */
-  transition: background-color 0.2s ease, color 0.2s ease;
+  margin-left: 8px;
 }
-
-.delete-task-text-btn:hover {
-  background-color: #ff9999;
-  color: #a00000;
+.edit-task-btn.glassy-icon-btn {
+  background: linear-gradient(135deg, rgba(168,230,207,0.35) 60%, rgba(255,255,255,0.15) 100%);
+  border: 1.5px solid rgba(168,230,207,0.45);
+}
+.edit-task-btn.glassy-icon-btn:hover {
+  background: linear-gradient(135deg, rgba(168,230,207,0.55) 60%, rgba(255,255,255,0.25) 100%);
+  box-shadow: 0 6px 24px rgba(168,230,207,0.18);
+  border: 2px solid rgba(168,230,207,0.65);
+}
+.delete-task-btn.glassy-icon-btn {
+  background: linear-gradient(135deg, rgba(255,140,148,0.35) 60%, rgba(255,255,255,0.15) 100%);
+  border: 1.5px solid rgba(255,140,148,0.45);
+}
+.delete-task-btn.glassy-icon-btn:hover {
+  background: linear-gradient(135deg, rgba(255,140,148,0.55) 60%, rgba(255,255,255,0.25) 100%);
+  box-shadow: 0 6px 24px rgba(255,140,148,0.18);
+  border: 2px solid rgba(255,140,148,0.65);
+}
+.glassy-icon-btn svg {
+  width: 22px;
+  height: 22px;
+  fill: #222;
+  opacity: 0.85;
+}
+.edit-task-btn,
+.delete-task-btn {
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  border: none;
 }
 
 /* Main Content */
 .main-content {
   flex: 1;
-  padding: 2rem;
+  padding: 3rem 0 3rem 0;
   overflow-y: auto;
-  background: var(--bg-primary);
+  background: none !important;
   transition: background-color var(--theme-transition-duration) ease;
+  position: relative; /* Added for correct positioning of absolute children like the spinner */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+/* Fade-in animation for content sections */
+#homeContent, #profileContent {
+  opacity: 0; /* Hidden by default */
+  transition: opacity 0.5s ease-in-out; /* Smooth fade-in/out */
+}
+
+#homeContent.fade-in,
+#profileContent.fade-in {
+  opacity: 1; /* Visible state */
 }
 
 .top-bar {
@@ -163,19 +212,18 @@ body {
   color: var(--text-color-secondary);
 }
 
-.card {
-  background: var(--bg-secondary);
-  padding: 1rem;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  margin-bottom: 1rem;
-  transition: background-color var(--theme-transition-duration) ease,
-              box-shadow var(--theme-transition-duration) ease,
-              transform 0.3s ease-out, /* For pop-out/in animation */
-              opacity 0.3s ease-out,  /* For fade-out/in animation */
-              height 0.5s ease-out, /* For smooth collapse */
-              padding 0.5s ease-out, /* For smooth collapse */
-              margin 0.5s ease-out; /* For smooth collapse */
+.card, .modal-content, .profile-card, .profile-user-info {
+  background: rgba(255,255,255,0.08) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.22), 0 1.5px 8px rgba(255,255,255,0.08) inset !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: none !important;
+  transition: box-shadow 0.3s, background 0.3s;
+}
+.card:hover, .modal-content:hover, .profile-card:hover, .profile-user-info:hover {
+  background: rgba(255,255,255,0.13) !important;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.32), 0 2px 12px rgba(255,255,255,0.12) inset !important;
 }
 
 .card.deleting {
@@ -217,7 +265,8 @@ body {
   flex-grow: 1;
   height: 8px;
   border-radius: 4px;
-  background-color: var(--border-color);
+  background: rgba(255,255,255,0.10) !important;
+  box-shadow: 0 1.5px 8px rgba(255,255,255,0.08) inset !important;
   overflow: hidden;
   position: relative;
 }
@@ -232,6 +281,7 @@ body {
   width: var(--progress-percentage, 0%);
   border-radius: inherit;
   transition: width var(--theme-transition-duration) ease-in-out;
+  filter: blur(1.5px);
 }
 
 .progress-bar.blue::before {
@@ -384,6 +434,13 @@ body {
               border-color var(--theme-transition-duration) ease;
   width: 100%;
   color: var(--text-color-primary);
+  box-sizing: border-box; /* Ensure padding and border are included in the width */
+}
+
+.profile-field input[readonly] {
+  background-color: rgba(128, 128, 128, 0.1); /* Light gray with 10% opacity */
+  cursor: not-allowed;
+  color: var(--text-color-secondary); /* Adjust text color for better contrast */
 }
 
 .profile-field input:focus {
@@ -398,36 +455,22 @@ body {
   width: 100%;
 }
 
-.profile-save-btn {
-  background: var(--accent-color-blue);
-  color: white;
-  padding: 0.8rem 1.5rem;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600;
-  transition: background-color 0.2s ease;
+.profile-save-btn, .profile-logout-btn {
+  background: linear-gradient(135deg, rgba(97,160,255,0.22) 60%, rgba(255,255,255,0.13) 100%) !important;
+  color: #fff !important;
+  border: 1.5px solid rgba(97,160,255,0.25) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.10) !important;
+  font-weight: 600 !important;
+  font-size: 1rem !important;
+  padding: 0.75rem 1.2rem !important;
+  transition: background 0.2s, box-shadow 0.2s, border 0.2s;
 }
 
-.profile-save-btn:hover {
-  background-color: #0056b3;
-}
-
-.profile-logout-btn {
-  background: var(--accent-color-red);
-  color: white;
-  padding: 0.8rem 1.5rem;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600;
-  transition: background-color 0.2s ease;
-}
-
-.profile-logout-btn:hover {
-  background-color: #c82333;
+.profile-save-btn:hover, .profile-logout-btn:hover {
+  background: linear-gradient(135deg, rgba(97,160,255,0.32) 60%, rgba(255,255,255,0.18) 100%) !important;
+  box-shadow: 0 6px 24px rgba(97,160,255,0.18) !important;
+  border: 2px solid #61a0ff !important;
 }
 
 /* Responsive adjustments */
@@ -563,41 +606,64 @@ body {
 }
 
 .achievements-grid {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); /* Responsive grid */
+  gap: 1rem;
   margin-top: 1rem;
 }
 
 .achievement-item {
+  background: var(--bg-secondary); /* Use secondary background for the cards */
+  border-radius: var(--radius); /* Inherit card radius */
+  box-shadow: var(--shadow); /* Inherit card shadow */
+  padding: 1rem;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  background: var(--bg-secondary);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 1rem;
-  width: 100px;
-  height: 100px;
   text-align: center;
-  color: var(--text-color-primary);
-  font-size: 0.85rem;
-  transition: background-color var(--theme-transition-duration) ease,
-              box-shadow var(--theme-transition-duration) ease,
-              transform 0.2s ease;
+  cursor: default; /* Not clickable, just informative */
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color var(--theme-transition-duration) ease;
 }
 
 .achievement-item:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  transform: translateY(-3px); /* Subtle lift on hover */
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15); /* Slightly stronger shadow on hover */
+}
+
+.achievement-icon-emoji {
+  font-size: 2.5rem; /* Large emoji icon */
+  margin-bottom: 0.5rem;
+  line-height: 1; /* Remove extra space around emoji */
+}
+
+.achievement-description {
+  font-size: 0.8rem;
+  color: var(--text-color-secondary);
+  margin-top: 0.5rem;
+  line-height: 1.3;
+}
+
+.achievement-item span:first-of-type {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-color-primary);
+  transition: color var(--theme-transition-duration) ease;
+}
+
+.achievement-item img {
+  /* Remove old image styling if any */
+  display: none; /* Hide placeholder images */
+}
+
+.achievement-item span {
+  /* Reset any previous achievement-item span styles */
+  margin: 0; 
+  padding: 0; 
 }
 
 .achievement-icon {
-  width: 40px;
-  height: 40px;
-  margin-bottom: 0.5rem;
+  /* The original image icon style - hide or repurpose */
+  display: none; 
 }
 
 /* New Theme Toggle Styles (from user's code) */
@@ -684,9 +750,11 @@ body.dark-mode .moon {
 
 /* Styling for the weekly progress icon */
 .weekly-progress-icon {
-  width: 32px;
-  height: 32px;
+  width: 48px !important; /* Increased size and forced override */
+  height: 48px !important; /* Increased size and forced override */
   flex-shrink: 0;
+  object-fit: contain; /* Ensure the image fits within its bounds */
+  transform: translateY(0.5vh);
 }
 
 /* Styles for the new task icon wrapper */
@@ -868,4 +936,197 @@ body.dark-mode .moon {
   background-color: #0056b3;
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
+}
+
+/* Timer Icon Wrapper - for hover effect and clickability */
+.task-icon-wrapper.timer-icon-wrapper {
+  cursor: pointer;
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+  position: relative; /* Needed for z-index if any overlay */
+  z-index: 2; /* Ensure it's above other elements during hover */
+}
+
+.task-icon-wrapper.timer-icon-wrapper:hover {
+  transform: scale(1.1); /* Enlarge slightly on hover */
+  box-shadow: 0 0 15px var(--modal-glow-color); /* Subtle glow on hover */
+}
+
+.task-timer-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Timer Modal Styling */
+.timer-modal-content {
+  width: 90%;
+  max-width: 500px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.5rem;
+  text-align: center;
+  transition: background-color var(--theme-transition-duration) ease,
+              box-shadow var(--theme-transition-duration) ease;
+}
+
+.timer-modal-body {
+  padding: 1.5rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.timer-display {
+  font-size: 3.5rem; /* Larger font size for the timer */
+  font-weight: 600;
+  color: var(--accent-color-blue); /* Distinct color for the timer */
+  letter-spacing: 2px;
+  font-family: 'Roboto Mono', monospace; /* Monospaced font for consistent digit width */
+  text-shadow: 0 0 10px rgba(0, 123, 255, 0.3); /* Subtle glow */
+  transition: color var(--theme-transition-duration) ease,
+              text-shadow var(--theme-transition-duration) ease;
+}
+
+.timer-controls {
+  display: flex;
+  justify-content: center;
+}
+
+.timer-control-btn {
+  background-color: var(--accent-color-blue); /* Blue background */
+  border: none;
+  border-radius: 50%; /* Circular button */
+  width: 70px; /* Larger button */
+  height: 70px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  box-shadow: 0 5px 15px rgba(0, 123, 255, 0.3); /* Soft shadow */
+  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.timer-control-btn:hover {
+  background-color: #0069d9; /* Darker blue on hover */
+  transform: scale(1.05); /* Slightly enlarge on hover */
+  box-shadow: 0 8px 20px rgba(0, 123, 255, 0.4);
+}
+
+.timer-control-icon {
+  width: 36px;
+  height: 36px;
+  filter: invert(100%); /* Make icon white */
+}
+
+.time {
+  flex-grow: 1;
+}
+
+/* Loading Spinner Styles */
+.loading-spinner-overlay {
+  position: absolute; /* Position relative to the profileContentDiv container */
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black overlay */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000; /* Ensure it's on top of other content */
+  border-radius: var(--radius); /* Inherit parent border-radius */
+}
+
+.spinner {
+  border: 4px solid rgba(255, 255, 255, 0.3); /* Light border for the spinner track */
+  border-top: 4px solid #ffffff; /* Solid white border for the spinning part */
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.card.weekly-progress {
+  max-width: 600px; /* Set a maximum width for the card */
+  margin: 0 auto 1rem auto; /* Center the card horizontally and maintain bottom margin */
+}
+
+/* Inputs & Buttons */
+input, select, textarea {
+  background: rgba(255,255,255,0.15) !important;
+  border: 1.5px solid rgba(255,255,255,0.18) !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+  padding: 0.75rem 1rem !important;
+  font-size: 1rem !important;
+  transition: border-color 0.2s, background 0.2s;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: #61a0ff !important;
+  background: rgba(255,255,255,0.22) !important;
+  outline: none !important;
+}
+input[readonly] {
+  background: rgba(255,255,255,0.10) !important;
+  color: #bbb !important;
+}
+
+button, .profile-save-btn, .profile-logout-btn, .modal-save-btn {
+  background: linear-gradient(135deg, rgba(97,160,255,0.22) 60%, rgba(255,255,255,0.13) 100%) !important;
+  color: #fff !important;
+  border: 1.5px solid rgba(97,160,255,0.25) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.10) !important;
+  font-weight: 600 !important;
+  font-size: 1rem !important;
+  padding: 0.75rem 1.2rem !important;
+  transition: background 0.2s, box-shadow 0.2s, border 0.2s;
+}
+button:hover, .profile-save-btn:hover, .profile-logout-btn:hover, .modal-save-btn:hover {
+  background: linear-gradient(135deg, rgba(97,160,255,0.32) 60%, rgba(255,255,255,0.18) 100%) !important;
+  box-shadow: 0 6px 24px rgba(97,160,255,0.18) !important;
+  border: 2px solid #61a0ff !important;
+}
+
+/* Task Progress Bar Glassy */
+.progress-bar {
+  background: rgba(255,255,255,0.10) !important;
+  box-shadow: 0 1.5px 8px rgba(255,255,255,0.08) inset !important;
+}
+.progress-bar::before {
+  filter: blur(1.5px);
+}
+
+/* Achievements, Profile, and Modal Glassy */
+.achievement-item, .modal-content, .profile-card, .profile-user-info {
+  background: rgba(255,255,255,0.10) !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 1.5px 8px rgba(255,255,255,0.08) inset !important;
+  border-radius: 16px !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: none !important;
+}
+
+/* Remove harsh card borders */
+.card, .profile-card, .profile-user-info, .modal-content, .achievement-item {
+  border: none !important;
+}
+
+/* Responsive tweaks for glassy look */
+@media (max-width: 900px) {
+  .main-content {
+    padding: 1.5rem 0 1.5rem 0;
+  }
+  .card, .modal-content, .profile-card, .profile-user-info {
+    padding: 1.2rem !important;
+  }
 }

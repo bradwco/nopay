@@ -1,4 +1,4 @@
-import { getFirestore, collection, query, where, getDocs, addDoc, doc, setDoc, serverTimestamp, deleteDoc, getDoc } from "firebase/firestore";
+import { getFirestore, collection, query, where, getDocs, addDoc, doc, setDoc, serverTimestamp, deleteDoc, getDoc, increment } from "firebase/firestore";
 import { app } from "./firebaseConfig";
 
 const db = getFirestore(app);
@@ -147,4 +147,61 @@ export const calculateAndStoreTotalProgress = async (userId) => {
   }
 };
 
-export { db, collection, query, where, getDocs, addDoc, doc, setDoc, serverTimestamp }; 
+export const incrementTaskProgress = async (userId, taskId, hoursToIncrement) => {
+  try {
+    const taskDocRef = doc(db, 'Tasks', userId, 'UserTasks', taskId);
+    
+    // Use FieldValue.increment to atomically add to currentProgress
+    await setDoc(taskDocRef, {
+      currentProgress: increment(hoursToIncrement)
+    }, { merge: true });
+
+    console.log(`Task ${taskId} progress incremented by ${hoursToIncrement} hours.`);
+    await calculateAndStoreTotalProgress(userId); // Recalculate total progress after updating
+    return { success: true };
+  } catch (error) {
+    console.error('Error incrementing task progress:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const createUserProfile = async (userId, username, achievements = [], themeSetting = false, profilePicture = "") => {
+  try {
+    const userProfileRef = doc(db, 'Users', userId);
+    
+    const profileData = {
+      userId: userId,
+      username: username,
+      profilePicture: profilePicture,
+      achievements: achievements,
+      themeSetting: themeSetting
+    };
+
+    await setDoc(userProfileRef, profileData, { merge: true }); // Use merge: true to avoid overwriting existing fields if called again
+    console.log('User profile created/updated successfully for user:', userId);
+    return { success: true };
+  } catch (error) {
+    console.error('Error creating/updating user profile:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Function to get a user's profile
+export const getUserProfile = async (userId) => {
+  try {
+    const userProfileRef = doc(db, 'Users', userId);
+    const userDocSnap = await getDoc(userProfileRef);
+    if (userDocSnap.exists()) {
+      console.log('User profile fetched successfully for user:', userId, userDocSnap.data());
+      return { success: true, profile: userDocSnap.data() };
+    } else {
+      console.log('No user profile found for user:', userId);
+      return { success: true, profile: null }; // Return null if no profile exists
+    }
+  } catch (error) {
+    console.error('Error getting user profile:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export { db, collection, query, where, getDocs, addDoc, doc, setDoc, serverTimestamp, increment }; 

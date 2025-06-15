@@ -1,0 +1,122 @@
+/* --------------- reset & base --------------- */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
+  }
+  body, html {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: radial-gradient(ellipse at bottom, #2a3746 0%, #040a1d 100%);
+    position: relative;
+  }
+  
+  /* --------------- center & fade-in background --------------- */
+  .background {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    position: relative;
+    animation: fadeIn 1.5s ease-in;
+  }
+  
+  /* --------------- soft particle grid --------------- */
+  .particles {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    animation: drift 60s linear infinite;
+    opacity: 0.4;
+    pointer-events: none;
+    z-index: 1;
+  }
+  
+  /* --------------- shooting stars --------------- */
+  .shooting-stars {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .shooting-stars .star {
+    position: absolute;
+    width: 2px;
+    height: 80px;
+    background: linear-gradient(-45deg, rgba(255,255,255,0.9), transparent);
+    opacity: 0;
+    transform: rotate(-45deg);
+    animation: shooting 2s ease-in-out infinite;
+  }
+  .shooting-stars .star:nth-child(1) { animation-delay: 2s;  top: 20%; left: 10%; animation-duration: 1.8s; }
+  .shooting-stars .star:nth-child(2) { animation-delay: 5s;  top: 40%; left: 80%; animation-duration: 2.2s; }
+  .shooting-stars .star:nth-child(3) { animation-delay: 8s;  top: 10%; left: 60%; animation-duration: 1.5s; }
+  .shooting-stars .star:nth-child(4) { animation-delay: 12s; top: 70%; left: 30%; animation-duration: 2.5s; }
+  .shooting-stars .star:nth-child(5) { animation-delay: 15s; top: 50%; left: 50%; animation-duration: 2s; }
+  
+  @keyframes shooting {
+    0%   { opacity: 0; transform: translate(0,0) rotate(-45deg); }
+    10%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(500px,500px) rotate(-45deg); }
+  }
+  
+  /* --------------- clickable frosted-glass card --------------- */
+  .card-button {
+    position: relative;
+    z-index: 3;
+    background-color: rgba(255,255,255,0.07);
+    border: none;
+    border-radius: 16px;
+    padding: 3rem;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    animation: slideUp 1.2s ease-out, breathing 4s ease-in-out infinite;
+    transition: transform 0.2s ease-out,
+                box-shadow 0.2s ease-out,
+                background-color 0.2s ease-out;
+  }
+  .card-button:focus {
+    outline: none;
+  }
+  
+  @keyframes breathing {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.02); }
+  }
+  
+  .card-button:hover {
+    transform: scale(1.2);
+    box-shadow: 0 30px 80px rgba(0,0,0,0.4);
+    background-color: rgba(255,255,255,0.15);
+  }
+  
+  /* --------------- logo --------------- */
+  .logo {
+    width: 140px;
+    height: auto;
+  }
+  
+  /* --------------- drifting & fades --------------- */
+  @keyframes drift {
+    from { transform: translate(0, 0); }
+    to   { transform: translate(-100px, -200px); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes slideUp {
+    from { transform: translateY(30px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+  }
+  

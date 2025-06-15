@@ -2,7 +2,8 @@
 
 import { setupFirebaseAuthListenersAndHandlers, signOut, auth, setupProfilePageLogoutButton } from "./firebaseAuth";
 import { HOME_PAGE_URL, STARTUP_PAGE_URL, AUTH_PAGE_URL } from "./firebaseConfig";
-import { addTask, getTasks, deleteTask, getTotalProgress, incrementTaskCounter, updateTask } from "./firebaseStore";
+import { addTask, getTasks, deleteTask, getTotalProgress, incrementTaskCounter, updateTask, incrementTaskProgress, createUserProfile, getUserProfile } from "./firebaseStore";
+import { checkAndGrantAchievements, renderAchievements } from "./achievements";
 // import { db, collection, query, where, getDocs, addDoc, doc, setDoc, serverTimestamp } from "./firebaseStore"; // Uncomment if you add Firestore logic here
 
 const profilePageHtml = `
@@ -10,7 +11,7 @@ const profilePageHtml = `
     <!-- Left Card: Profile Picture & Username -->
     <div class="profile-card profile-user-info">
       <div class="profile-avatar-large">
-        <img id="profilePicture" src="https://via.placeholder.com/150" alt="Profile Avatar" />
+        <img id="profilePicture" src="../assets/defaultprofile.png" alt="Profile Avatar" />
       </div>
       <input type="file" id="avatarUpload" accept="image/*" style="display:none;" />
       <button class="profile-avatar-upload" id="changePictureBtn" onclick="document.getElementById('avatarUpload').click();">Change Picture</button>
@@ -25,23 +26,14 @@ const profilePageHtml = `
         <label for="username">Username</label>
         <input type="text" id="profileUsername" placeholder="Your username">
       </div>
+      <div class="profile-field">
+        <label for="email">Email</label>
+        <input type="text" id="profileEmail" readonly>
+      </div>
 
       <h4 class="profile-section-title" style="margin-top: 1.5rem;">Achievements</h4>
       <div class="achievements-grid" id="achievementsGrid">
-        <!-- Achievement Item Example -->
-        <div class="achievement-item">
-          <img src="https://via.placeholder.com/40" alt="Icon" class="achievement-icon" />
-          <span>First Milestone</span>
-        </div>
-        <div class="achievement-item">
-          <img src="https://via.placeholder.com/40" alt="Icon" class="achievement-icon" />
-          <span>Top Collaborator</span>
-        </div>
-        <div class="achievement-item">
-          <img src="https://via.placeholder.com/40" alt="Icon" class="achievement-icon" />
-          <span>100 Hours Logged</span>
-        </div>
-        <!-- More achievements can be added here -->
+        <!-- Achievements will be dynamically loaded here by JavaScript -->
       </div>
 
       <h4 class="profile-section-title" style="margin-top: 1.5rem;">Theme Settings</h4>
@@ -123,8 +115,25 @@ function getTaskColorClassName(hexColor) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const getStartedBtn = document.getElementById('getStarted');
+
+  // Get references to main content area and other essential elements
+  const mainContent = document.querySelector('.main-content');
+  const homeContentDiv = document.getElementById('homeContent');
+  const profileContentDiv = document.getElementById('profileContent');
+  const createTaskModal = document.getElementById('createTaskModal');
+  const editTaskModal = document.getElementById('editTaskModal'); // Get reference to the edit modal
+
+  // Append the loading spinner to the main content area once on DOMContentLoaded
+  if (mainContent) {
+    const spinnerHtml = `
+      <div id="profileLoadingSpinner" class="loading-spinner-overlay" style="display: none;">
+        <div class="spinner"></div>
+      </div>
+    `;
+    mainContent.insertAdjacentHTML('beforeend', spinnerHtml);
+  }
 
   // Get Started button logic (from startup.html)
   if (getStartedBtn) {
@@ -136,11 +145,34 @@ document.addEventListener('DOMContentLoaded', () => {
   // Call the function to set up all Firebase Auth listeners and handlers
   setupFirebaseAuthListenersAndHandlers();
 
-  // Get references to content divs
-  const homeContentDiv = document.getElementById('homeContent');
-  const profileContentDiv = document.getElementById('profileContent');
-  const createTaskModal = document.getElementById('createTaskModal');
-  const editTaskModal = document.getElementById('editTaskModal'); // Get reference to the edit modal
+  // After Firebase Auth is set up, check if a user is already authenticated on page load
+  // and render home content if on the home page.
+  if (auth.currentUser && window.location.pathname.endsWith('home.html')) {
+    console.log('User already authenticated on page load. Rendering home content.');
+    renderHomeContent(auth.currentUser.uid); // Render immediately
+
+    // Ensure home content div is visible and active
+    const homeContentDivElement = document.getElementById('homeContent');
+    if (homeContentDivElement) {
+      homeContentDivElement.style.display = 'block';
+      homeContentDivElement.classList.add('active');
+      // Add fade-in class after a small delay
+      setTimeout(() => {
+        homeContentDivElement.classList.add('fade-in');
+      }, 10);
+    }
+
+    // Also update the displayed username in the top bar
+    const currentUsernameDisplay = document.getElementById('currentUsernameDisplay');
+    if (currentUsernameDisplay) {
+      const { success, profile } = await getUserProfile(auth.currentUser.uid);
+      if (success && profile && profile.username) {
+        currentUsernameDisplay.textContent = profile.username;
+      } else {
+        currentUsernameDisplay.textContent = auth.currentUser.email;
+      }
+    }
+  }
 
   // Setup close button listener for Create Task modal (top right X button) - attached once
   const createModalCloseBtn = document.getElementById('createModalCloseBtn');
@@ -196,7 +228,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Sidebar navigation logic for sliding background
   const navItems = document.querySelectorAll('.nav-item');
   const navSlider = document.querySelector('.nav-slider');
-  const mainContent = document.querySelector('.main-content');
   const homeNavLink = document.getElementById('homeNavLink');
   const createNavLink = document.getElementById('createNavLink');
   const profileNavLink = document.getElementById('profileNavLink');
@@ -213,14 +244,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
       contentSections.forEach(section => {
           if (section) { // Ensure the element exists
+              section.classList.remove('fade-in'); // Remove fade-in from all
               section.style.display = 'none'; // Hide all by default
               section.classList.remove('active');
           }
       });
 
       if (sectionToShow) {
-          sectionToShow.style.display = 'block'; // Show the desired one
+          sectionToShow.style.display = 'block'; // Show the desired one (initially at opacity 0)
           sectionToShow.classList.add('active');
+          // Trigger fade-in after display is set
+          setTimeout(() => {
+            sectionToShow.classList.add('fade-in');
+          }, 10); // Small delay to ensure display:block is applied before transition
       }
   }
 
@@ -279,19 +315,24 @@ document.addEventListener('DOMContentLoaded', () => {
               console.log('renderHomeContent - No tasks found.');
             } else {
               tasks.forEach(task => {
+                console.log(`Task: ${task.taskName}, currentProgress: ${task.currentProgress}, totalHours: ${task.totalHours}`);
                 const currentProgressPercentage = task.totalHours > 0 ? ((task.currentProgress || 0) / task.totalHours * 100).toFixed(0) : 0;
                 const taskCardHtml = `
                   <div class="card task">
                     <div class="task-header">
                       <div class="task-left">
-                        <div class="task-icon-wrapper" style="background-color: ${task.taskColor};">
-                          <img src="../assets/timer.png" alt="Timer Icon" />
+                        <div class="task-icon-wrapper timer-icon-wrapper" data-task-id="${task.id}" data-task-name="${task.taskName}" style="background-color: ${task.taskColor};">
+                          <img src="../assets/timer.png" alt="Timer Icon" class="task-timer-icon" />
                         </div>
                         <span>${task.taskName} - <strong>${currentProgressPercentage}%</strong></span> <!-- Initial progress 0% -->
                       </div>
-                      <span class="time">${task.displayId || ''} | ${task.currentProgress || 0} Hours / ${task.totalHours} Hours</span>
-                      <button class="edit-task-btn" data-task-id="${task.id}">Edit</button>
-                      <button class="delete-task-btn delete-task-text-btn" data-task-id="${task.id}">Delete</button>
+                      <span class="time">${task.frequency} | ${formatHoursToHMS(task.currentProgress || 0)} / ${formatHoursToHMS(task.totalHours)} Hours</span>
+                      <button class="edit-task-btn glassy-icon-btn" data-task-id="${task.id}" title="Edit">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" fill="#222"/></svg>
+                      </button>
+                      <button class="delete-task-btn glassy-icon-btn" data-task-id="${task.id}" title="Delete">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3V6zm2 3h14v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9zm3 2v9h2v-9H8zm4 0v9h2v-9h-2z" fill="#222"/></svg>
+                      </button>
                     </div>
                     <div class="progress-bar ${getTaskColorClassName(task.taskColor)}" style="--progress-percentage: ${currentProgressPercentage}%;"></div>
                   </div>
@@ -358,6 +399,15 @@ document.addEventListener('DOMContentLoaded', () => {
                   }
                 });
               });
+
+              // Add event listener for timer icons
+              document.querySelectorAll('.timer-icon-wrapper').forEach(iconWrapper => {
+                iconWrapper.addEventListener('click', (event) => {
+                  const taskId = event.currentTarget.dataset.taskId;
+                  const taskName = event.currentTarget.dataset.taskName;
+                  openTimerModal(taskId, taskName);
+                });
+              });
             }
           } else {
             tasksDisplayArea.innerHTML = '<p style="text-align: center; color: var(--text-color-secondary);">Error loading tasks.</p>';
@@ -414,23 +464,48 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Listen for the custom event and render home content if on home page
-  document.addEventListener('userAuthenticated', (event) => {
+  document.addEventListener('userAuthenticated', async (event) => { // Made async to await getUserProfile
+    console.log('userAuthenticated event received. Path:', window.location.pathname, 'User ID:', event.detail.uid); // Log event reception
+
     // Only render home content if the user is currently on the home page
     if (window.location.pathname.endsWith('home.html')) {
-      console.log('User authenticated event received. Rendering home content.');
-      renderHomeContent(event.detail.uid); // Pass the userId from the event
-
-      // Ensure home content div is visible and active on authentication
+      console.log('User authenticated event: On home.html, proceeding to render home content.');
+      
       const homeContentDiv = document.getElementById('homeContent');
       if (homeContentDiv) {
+        console.log('userAuthenticated: Found homeContentDiv. Current display:', homeContentDiv.style.display, 'classList:', homeContentDiv.classList);
+        
+        // Ensure homeContentDiv is visible and active on authentication
         homeContentDiv.style.display = 'block';
         homeContentDiv.classList.add('active');
+        
+        // Add fade-in class after a very small delay to ensure display:block is processed
+        setTimeout(() => {
+          homeContentDiv.classList.add('fade-in');
+          console.log('userAuthenticated: Added fade-in class to homeContentDiv. New classList:', homeContentDiv.classList);
+        }, 10);
+
+        // Render home content (tasks, total progress etc.)
+        console.log('userAuthenticated: Calling renderHomeContent for userId:', event.detail.uid);
+        await renderHomeContent(event.detail.uid); // Pass the userId from the event
+        console.log('userAuthenticated: renderHomeContent finished.');
+
+      } else {
+        console.warn('userAuthenticated: homeContentDiv not found!');
       }
 
-      // Update the displayed username
+      // Update the displayed username at the top
       const currentUsernameDisplay = document.getElementById('currentUsernameDisplay');
-      if (currentUsernameDisplay && event.detail.email) {
-        currentUsernameDisplay.textContent = event.detail.email; // Use email as username
+      if (currentUsernameDisplay && event.detail.uid) {
+        console.log('userAuthenticated: Updating currentUsernameDisplay.');
+        const { success, profile } = await getUserProfile(event.detail.uid); // Fetch profile
+        if (success && profile && profile.username) {
+          currentUsernameDisplay.textContent = profile.username; // Use saved username
+        } else if (event.detail.email) {
+          currentUsernameDisplay.textContent = event.detail.email; // Fallback to email
+        }
+      } else {
+        console.warn('userAuthenticated: currentUsernameDisplay not found or no user ID.');
       }
     }
   });
@@ -473,9 +548,159 @@ document.addEventListener('DOMContentLoaded', () => {
           case 'profileNavLink':
             showContentSection(profileContentDiv);
             profileContentDiv.innerHTML = profilePageHtml; // Render profile content directly into its container
+            
+            const profileLoadingSpinner = document.getElementById('profileLoadingSpinner');
+            if (profileLoadingSpinner) {
+              profileLoadingSpinner.style.display = 'flex'; // Show spinner
+            }
+
             // Setup listeners for dynamically loaded profile content
             setupProfilePageLogoutButton();
             setupThemeToggle(); // Setup theme toggle for the new content
+
+            // Fetch and display user profile data
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+              // Check and grant achievements before fetching and displaying profile
+              await checkAndGrantAchievements(currentUser.uid, currentUser.email);
+
+              // Populate the email field immediately if currentUser exists
+              const profileEmailInput = document.getElementById('profileEmail');
+              if (profileEmailInput && currentUser.email) {
+                profileEmailInput.value = currentUser.email;
+              }
+
+              const { success, profile } = await getUserProfile(currentUser.uid);
+              console.log('Profile fetch result:', { success, profile }); // Debugging: log profile data
+              if (success && profile) {
+                const displayedUsername = document.getElementById('displayedUsername');
+                const profileUsernameInput = document.getElementById('profileUsername');
+                console.log('Fetched username:', profile.username); // Debugging: log fetched username
+                if (displayedUsername) {
+                  displayedUsername.textContent = profile.username || currentUser.email; // Display saved username or email
+                }
+                if (profileUsernameInput) {
+                  profileUsernameInput.value = profile.username || currentUser.email; // Set input field value
+                }
+                // Render achievements
+                renderAchievements(profile.achievements, 'achievementsGrid');
+
+              } else if (currentUser.email) {
+                // If no profile found, but user is logged in, display email in input
+                const displayedUsername = document.getElementById('displayedUsername');
+                const profileUsernameInput = document.getElementById('profileUsername');
+                console.log('Using email as fallback:', currentUser.email); // Debugging: log fallback email
+                if (displayedUsername) {
+                  displayedUsername.textContent = currentUser.email;
+                }
+                if (profileUsernameInput) {
+                  profileUsernameInput.value = currentUser.email;
+                }
+                // Render empty achievements if no profile
+                renderAchievements([], 'achievementsGrid');
+              }
+            }
+            // Show spinner for minimum 0.5s and maximum 3s
+            const minimumSpinnerDisplayTime = 500; // 0.5 seconds minimum
+            const maximumSpinnerDisplayTime = 3000; // 3 seconds maximum
+            const startTime = Date.now();
+
+            const hideSpinner = () => {
+                const elapsedTime = Date.now() - startTime;
+                const remainingTime = Math.min(
+                    Math.max(minimumSpinnerDisplayTime - elapsedTime, 0), // Ensure minimum time
+                    maximumSpinnerDisplayTime - elapsedTime // Ensure maximum time
+                );
+
+                if (remainingTime > 0) {
+                    setTimeout(() => {
+                        if (profileLoadingSpinner) {
+                            profileLoadingSpinner.style.display = 'none';
+                        }
+                    }, remainingTime);
+                } else {
+                    if (profileLoadingSpinner) {
+                        profileLoadingSpinner.style.display = 'none';
+                    }
+                }
+            };
+            hideSpinner();
+
+            // Attach event listener for Save Changes button on profile page
+            const saveChangesBtn = document.getElementById('saveChangesBtn');
+            if (saveChangesBtn) {
+              saveChangesBtn.addEventListener('click', async () => {
+                const currentUser = auth.currentUser;
+                if (currentUser) {
+                  const usernameInput = document.getElementById('profileUsername');
+                  const newUsername = usernameInput ? usernameInput.value : currentUser.email;
+                  console.log('Attempting to save username:', newUsername); // Debugging: log username being saved
+
+                  // Fetch existing profile to preserve other fields
+                  const { success: fetchExistingSuccess, profile: existingProfile } = await getUserProfile(currentUser.uid);
+                  let profilePictureToSave = "";
+                  let achievementsToSave = [];
+                  let themeSettingToSave = false; // Default to false (light mode)
+
+                  if (fetchExistingSuccess && existingProfile) {
+                    profilePictureToSave = existingProfile.profilePicture || "";
+                    achievementsToSave = existingProfile.achievements || [];
+                    // Use the theme setting from the existing profile as a base
+                    themeSettingToSave = existingProfile.themeSetting || false; 
+                  }
+
+                  // Override themeSettingToSave with the current UI state of the theme toggle
+                  const themeToggleElement = document.getElementById('themeToggle');
+                  if (themeToggleElement && themeToggleElement.classList.contains('dark-mode')) { // Assuming 'dark-mode' class indicates dark theme
+                    themeSettingToSave = true;
+                  } else if (themeToggleElement && themeToggleElement.classList.contains('light-mode')) { // Assuming 'light-mode' class indicates light theme
+                    themeSettingToSave = false;
+                  } else if (document.body.classList.contains('dark-mode')) { // Fallback check on body if toggle doesn't have it
+                      themeSettingToSave = true;
+                  } else if (document.body.classList.contains('light-mode')) { // Fallback check on body if toggle doesn't have it
+                      themeSettingToSave = false;
+                  } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) { // Fallback to system preference
+                      // This is a last resort, if no explicit theme is set by the toggle
+                      themeSettingToSave = true; 
+                  }
+
+                  const { success } = await createUserProfile(
+                    currentUser.uid,
+                    newUsername,
+                    achievementsToSave,
+                    themeSettingToSave,
+                    profilePictureToSave
+                  );
+
+                  if (success) {
+                    alert('Profile changes saved successfully!');
+                    // Re-fetch and display updated username and achievements after save
+                    const { success: reFetchSuccess, profile: reFetchedProfile } = await getUserProfile(currentUser.uid);
+                    console.log('Profile re-fetch result after save:', { reFetchSuccess, reFetchedProfile }); // Debugging: log re-fetched profile
+                    if (reFetchSuccess && reFetchedProfile) {
+                      const displayedUsername = document.getElementById('displayedUsername');
+                      const profileUsernameInput = document.getElementById('profileUsername');
+                      if (displayedUsername) {
+                        displayedUsername.textContent = reFetchedProfile.username || currentUser.email;
+                      }
+                      if (profileUsernameInput) {
+                        profileUsernameInput.value = reFetchedProfile.username || currentUser.email;
+                      }
+                      // After saving, re-check and re-render achievements
+                      await checkAndGrantAchievements(currentUser.uid, currentUser.email); // Re-check for username change achievement
+                      const { success: finalFetchSuccess, profile: finalFetchedProfile } = await getUserProfile(currentUser.uid);
+                      if (finalFetchSuccess && finalFetchedProfile) {
+                        renderAchievements(finalFetchedProfile.achievements, 'achievementsGrid');
+                      }
+                    }
+                  } else {
+                    alert('Failed to save profile changes. Please try again.');
+                  }
+                } else {
+                  alert('You must be logged in to save profile changes.');
+                }
+              });
+            }
             break;
           default:
             // Do nothing or handle other cases
@@ -582,7 +807,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Hide the modal
         editTaskModal.style.display = 'none';
         // Refresh tasks on the home page
-        showContentSection(homeContentDiv); // Show home content when closing edit modal
+        showContentSection(homeContentDiv);
         renderHomeContent(currentUser.uid);
 
         // Ensure Home tab is active and slider is updated
@@ -614,4 +839,212 @@ document.addEventListener('DOMContentLoaded', () => {
       // It must be called AFTER profilePageHtml is set, which is in navItems.forEach.
     }
   }
+
+  // Timer Modal and Logic (moved declarations to top of DOMContentLoaded scope for clarity)
+  const timerModal = document.getElementById('timerModal');
+  const timerModalCloseBtn = document.getElementById('timerModalCloseBtn');
+  const timerModalTaskName = document.getElementById('timerModalTaskName');
+  const taskTimerDisplay = document.getElementById('taskTimerDisplay');
+  const startStopTimerBtn = document.getElementById('startStopTimerBtn');
+  const startStopTimerIcon = document.getElementById('startStopTimerIcon');
+  const startStopTimerText = document.getElementById('startStopTimerText');
+
+  console.log('timerModalCloseBtn found:', !!timerModalCloseBtn);
+  if (timerModalCloseBtn) {
+    timerModalCloseBtn.addEventListener('click', () => {
+      console.log('Timer modal close button clicked.');
+      closeTimerModal();
+    });
+  }
+
+  console.log('startStopTimerBtn found:', !!startStopTimerBtn);
+  if (startStopTimerBtn) {
+    startStopTimerBtn.addEventListener('click', () => {
+      console.log('Start/Stop Timer button clicked. Current timerRunning:', timerRunning);
+      if (timerRunning) {
+        stopTimer();
+      } else {
+        startTimer();
+      }
+    });
+  }
+
+  let timerInterval;
+  let elapsedSeconds = 0;
+  let currentTimerTaskId = null;
+  let timerRunning = false;
+
+  function formatTime(totalSeconds) {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return [
+      String(hours).padStart(2, '0'),
+      String(minutes).padStart(2, '0'),
+      String(seconds).padStart(2, '0')
+    ].join(':');
+  }
+
+  // New helper function to format hours (decimal) into HH:MM:SS
+  function formatHoursToHMS(decimalHours) {
+    const totalSeconds = Math.round(decimalHours * 3600);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return [
+      String(hours).padStart(2, '0'),
+      String(minutes).padStart(2, '0'),
+      String(seconds).padStart(2, '0')
+    ].join(':');
+  }
+
+  function updateTimerDisplay() {
+    taskTimerDisplay.textContent = formatTime(elapsedSeconds);
+  }
+
+  async function startTimer() {
+    console.log('startTimer function called.');
+    if (!currentTimerTaskId) {
+      console.warn('startTimer: No currentTimerTaskId set.');
+      return;
+    }
+    timerRunning = true;
+    if (startStopTimerText) {
+      startStopTimerText.textContent = 'Pause';
+    }
+
+    timerInterval = setInterval(() => {
+      elapsedSeconds++;
+      updateTimerDisplay();
+    }, 1000);
+
+    console.log(`Timer started for task ${currentTimerTaskId}`);
+  }
+
+  async function stopTimer() {
+    console.log('stopTimer function called.');
+    if (!timerRunning) {
+      console.warn('stopTimer: Timer not running.');
+      return;
+    }
+    timerRunning = false;
+    clearInterval(timerInterval);
+    if (startStopTimerText) {
+      startStopTimerText.textContent = 'Play';
+    }
+
+    console.log(`Timer stopped for task ${currentTimerTaskId}. Elapsed seconds: ${elapsedSeconds}`);
+
+    // Removed: Saving elapsed time to Firestore logic is now moved to closeTimerModal
+    // if (auth.currentUser && currentTimerTaskId) {
+    //   const hoursToAdd = elapsedSeconds / 3600;
+    //   const { success, error } = await incrementTaskProgress(auth.currentUser.uid, currentTimerTaskId, hoursToAdd);
+    //   if (success) {
+    //     console.log(`Successfully added ${hoursToAdd.toFixed(2)} hours to task ${currentTimerTaskId}`);
+    //     renderHomeContent(auth.currentUser.uid);
+    //   } else {
+    //     console.error(`Failed to update task ${currentTimerTaskId}:`, error);
+    //   }
+    // }
+    // Removed: resetTimer() is now called only when closing the modal
+    // resetTimer();
+  }
+
+  function resetTimer() {
+    elapsedSeconds = 0;
+    updateTimerDisplay();
+  }
+
+  async function openTimerModal(taskId, taskName) {
+    currentTimerTaskId = taskId;
+    timerModalTaskName.textContent = `Task: ${taskName}`;
+    // Always start timer from 0 for a new session in the modal
+    elapsedSeconds = 0;
+    updateTimerDisplay();
+    
+    // Removed: Logic to fetch and initialize elapsedSeconds from currentProgress
+    // if (auth.currentUser && taskId) {
+    //   const { success, tasks } = await getTasks(auth.currentUser.uid);
+    //   if (success) {
+    //     const task = tasks.find(t => t.id === taskId);
+    //     if (task && task.currentProgress) {
+    //       elapsedSeconds = Math.round(task.currentProgress * 3600);
+    //       updateTimerDisplay();
+    //     } else {
+    //       elapsedSeconds = 0;
+    //       updateTimerDisplay();
+    //     }
+    //   } else {
+    //     console.error('Failed to fetch tasks to initialize timer modal.', tasks.error);
+    //     elapsedSeconds = 0;
+    //     updateTimerDisplay();
+    //   }
+    // }
+
+    showContentSection(timerModal);
+    timerModal.style.display = 'flex'; // Use flex to center the modal
+  }
+
+  async function closeTimerModal() { // Made async to await Firebase calls
+    console.log('closeTimerModal function called.');
+    stopTimer(); // Ensure timer is stopped when modal closes
+
+    // Save accumulated elapsed time to Firestore before closing
+    if (auth.currentUser && currentTimerTaskId && elapsedSeconds > 0) {
+      const hoursToAdd = elapsedSeconds / 3600;
+      console.log(`Saving ${hoursToAdd.toFixed(4)} hours for task ${currentTimerTaskId}`);
+      const { success, error } = await incrementTaskProgress(auth.currentUser.uid, currentTimerTaskId, hoursToAdd);
+      if (success) {
+        console.log(`Successfully saved ${hoursToAdd.toFixed(2)} hours to task ${currentTimerTaskId}`);
+        // Refresh home content to show updated progress only after successful save
+        renderHomeContent(auth.currentUser.uid);
+      } else {
+        console.error(`Failed to save task ${currentTimerTaskId}:`, error);
+      }
+    }
+
+    currentTimerTaskId = null;
+    resetTimer(); // Reset timer only after saving and when closing the modal
+
+    const homeContentDiv = document.getElementById('homeContent');
+    const timerModal = document.getElementById('timerModal'); // Ensure timerModal is accessible here
+
+    if (timerModal) {
+      timerModal.style.display = 'none';
+      console.log('Timer modal display set to none.');
+    }
+
+    if (homeContentDiv) {
+      showContentSection(homeContentDiv);
+      console.log('Home content section set to active/block.', homeContentDiv.style.display, homeContentDiv.classList.contains('active') ? 'active' : 'not active');
+    } else {
+      console.warn('homeContentDiv not found in closeTimerModal.');
+    }
+  }
+
+  // When navigating away from home or logging out, ensure timer stops
+  window.addEventListener('beforeunload', () => {
+    // No need to save here, as save logic is now only on modal close
+    stopTimer();
+  });
+
+  auth.onAuthStateChanged(user => {
+    if (!user) {
+      // If user logs out, stop timer and save any accumulated time
+      if (timerRunning || elapsedSeconds > 0) {
+        // This case handles unsaved time if user logs out while modal is open
+        // or if they had time accumulated and navigated away.
+        // We'll call closeTimerModal to trigger the save logic.
+        if (currentTimerTaskId) { // Only attempt to close if a task was active
+            closeTimerModal(); // This will stop, save, and reset
+        } else {
+            stopTimer(); // Just stop if no task was active
+            resetTimer(); // Reset for clean state
+        }
+      } else {
+        stopTimer();
+        resetTimer();
+      }
+    }
+  });
 }); 

@@ -15,15 +15,15 @@
       <nav class="nav">
         <div class="nav-slider"></div>
         <button class="nav-item active" id="homeNavLink">
-          <img src="../assets/home-icon-silhouette.png" />
+          <img src="../assets/home.png" />
           Home
         </button>
         <button class="nav-item" id="createNavLink">
-          <img src="../assets/writing.png" />
+          <img src="../assets/create.png" />
           Create
         </button>
         <button class="nav-item" id="profileNavLink">
-          <img src="../assets/user.png" />
+          <img src="../assets/profile.png" />
           Profile
         </button>
       </nav>
@@ -36,8 +36,8 @@
       </div>
 
       <div id="homeContent" class="content-section active">
-        <div class="card weekly-progress">
-          <div class="card-header">
+      <div class="card weekly-progress">
+        <div class="card-header">
             <div class="progress-label">
               <img src="../assets/color-palette.png" alt="Total Progress Icon" class="weekly-progress-icon" />
               <span><strong>Total Progress</strong></span>
@@ -115,10 +115,28 @@
                 <option value="weekly">Weekly</option>
                 <option value="monthly">Monthly</option>
               </select>
-            </div>
-          </div>
+        </div>
+      </div>
           <div class="modal-footer">
             <button class="modal-save-btn" id="editTaskSaveBtn">Save Changes</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timer Modal - Always in DOM but hidden by default -->
+      <div id="timerModal" class="modal" style="display: none;">
+        <div class="modal-content timer-modal-content">
+          <div class="modal-header">
+            <h2 id="timerModalTaskName">Task Timer</h2>
+            <button class="modal-close-btn" id="timerModalCloseBtn">&times;</button>
+          </div>
+          <div class="modal-body timer-modal-body">
+            <p class="timer-display" id="taskTimerDisplay">00:00:00</p>
+            <div class="timer-controls">
+              <button class="timer-control-btn" id="startStopTimerBtn">
+                <span id="startStopTimerText">Play</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
