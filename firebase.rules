@@ -1,0 +1,12 @@
+// Rules for individual user tasks
+match /Tasks/{userId}/UserTasks/{taskId} {
+  allow read: if request.auth != null && request.auth.uid == userId;
+  allow create, update, delete: if request.auth != null && request.auth.uid == userId;
+}
+
+// Rules for user history tasks - Explicitly allow create
+match /HistoryTasks/{userId}/UserHistoryTasks/{historyTaskId} {
+  allow read: if request.auth != null && request.auth.uid == userId;
+  allow create: if request.auth != null && request.auth.uid == userId;
+  allow update, delete: if request.auth != null && request.auth.uid == userId;
+} 

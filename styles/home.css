@@ -43,11 +43,13 @@ body.dark-mode {
   --modal-glow-color: rgba(170, 150, 255, 0.2); /* Purplish glow for dark mode */
 }
 
-body, html {
-  background: radial-gradient(ellipse at bottom, #2a3746 0%, #040a1d 100%) !important;
-  min-height: 100vh;
-  font-family: 'Inter', 'Segoe UI', sans-serif;
-  position: relative;
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-color-primary);
+  transition: background-color var(--theme-transition-duration) ease,
+              color var(--theme-transition-duration) ease;
 }
 
 .container {
@@ -60,12 +62,15 @@ body, html {
 /* Sidebar */
 .sidebar {
   width: 220px;
-  background-color: var(--dark);
+  background: linear-gradient(160deg, rgba(13,18,36,0.85) 60%, rgba(100,181,246,0.25) 100%);
   color: white;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding-top: 2rem;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 4px 0 32px 0 rgba(100,181,246,0.10);
 }
 
 .logo {
@@ -88,14 +93,18 @@ body, html {
   top: 0;
   width: 100%;
   height: 0; /* Will be set by JS */
-  background-color: var(--accent-color-blue); /* Blue banner color */
-  border-radius: var(--radius); /* Inherit rounded corners */
+  background: linear-gradient(135deg, rgba(158,227,251,0.35) 60%, rgba(255,255,255,0.18) 100%);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(158,227,251,0.10);
+  border: 1.5px solid rgba(158,227,251,0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   transition: top 0.3s cubic-bezier(0.23, 1, 0.32, 1),
               height 0.3s cubic-bezier(0.23, 1, 0.32, 1),
               opacity 0.2s ease-out,
               transform 0.2s ease-out,
-              background-color var(--theme-transition-duration) ease; /* Add transition for background color */
-  filter: blur(1px); /* Subtle blur effect */
+              background 0.3s ease;
+  filter: none;
   opacity: 0; /* Hidden initially, shown by JS */
 }
 
@@ -183,16 +192,13 @@ body, html {
 /* Main Content */
 .main-content {
   flex: 1;
-  padding: 3rem 0 3rem 0;
+  padding: 2rem;
   overflow-y: auto;
-  background: none !important;
+  background: linear-gradient(120deg, rgba(100,181,246,0.18) 0%, rgba(28,32,54,0.85) 80%);
   transition: background-color var(--theme-transition-duration) ease;
-  position: relative; /* Added for correct positioning of absolute children like the spinner */
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
+  position: relative;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
 /* Fade-in animation for content sections */
@@ -212,18 +218,23 @@ body, html {
   color: var(--text-color-secondary);
 }
 
-.card, .modal-content, .profile-card, .profile-user-info {
-  background: rgba(255,255,255,0.08) !important;
-  border-radius: 18px !important;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.22), 0 1.5px 8px rgba(255,255,255,0.08) inset !important;
-  backdrop-filter: blur(14px) !important;
-  -webkit-backdrop-filter: blur(14px) !important;
-  border: none !important;
-  transition: box-shadow 0.3s, background 0.3s;
-}
-.card:hover, .modal-content:hover, .profile-card:hover, .profile-user-info:hover {
-  background: rgba(255,255,255,0.13) !important;
-  box-shadow: 0 30px 80px rgba(0,0,0,0.32), 0 2px 12px rgba(255,255,255,0.12) inset !important;
+.card, .card.weekly-progress {
+  background: rgba(44, 48, 72, 0.97);
+  border-radius: var(--radius);
+  box-shadow:
+    0 8px 40px 0 rgba(0,0,0,0.32),
+    0 2px 8px 0 rgba(0,0,0,0.10);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  padding: 1rem;
+  margin-bottom: 1rem;
+  transition: background-color var(--theme-transition-duration) ease,
+              box-shadow var(--theme-transition-duration) ease,
+              transform 0.3s ease-out,
+              opacity 0.3s ease-out,
+              height 0.5s ease-out,
+              padding 0.5s ease-out,
+              margin 0.5s ease-out;
 }
 
 .card.deleting {
@@ -265,8 +276,7 @@ body, html {
   flex-grow: 1;
   height: 8px;
   border-radius: 4px;
-  background: rgba(255,255,255,0.10) !important;
-  box-shadow: 0 1.5px 8px rgba(255,255,255,0.08) inset !important;
+  background-color: var(--border-color);
   overflow: hidden;
   position: relative;
 }
@@ -281,7 +291,6 @@ body, html {
   width: var(--progress-percentage, 0%);
   border-radius: inherit;
   transition: width var(--theme-transition-duration) ease-in-out;
-  filter: blur(1.5px);
 }
 
 .progress-bar.blue::before {
@@ -387,19 +396,22 @@ body, html {
 }
 
 .profile-avatar-upload {
-  background-color: #007bff;
+  background-color: rgba(0, 191, 255, 0.3); /* Glass effect with vibrant blue */
   color: white;
   padding: 0.6rem 1.2rem;
-  border: none;
+  border: 1px solid rgba(0, 191, 255, 0.5); /* Glass effect border */
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.9rem;
   font-weight: 600;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .profile-avatar-upload:hover {
-  background-color: #0056b3;
+  background-color: rgba(0, 191, 255, 0.4); /* Slightly more opaque on hover */
+  border-color: rgba(0, 191, 255, 0.6);
 }
 
 .profile-details-grid {
@@ -455,22 +467,42 @@ body, html {
   width: 100%;
 }
 
-.profile-save-btn, .profile-logout-btn {
-  background: linear-gradient(135deg, rgba(97,160,255,0.22) 60%, rgba(255,255,255,0.13) 100%) !important;
-  color: #fff !important;
-  border: 1.5px solid rgba(97,160,255,0.25) !important;
-  border-radius: 10px !important;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.10) !important;
-  font-weight: 600 !important;
-  font-size: 1rem !important;
-  padding: 0.75rem 1.2rem !important;
-  transition: background 0.2s, box-shadow 0.2s, border 0.2s;
+.profile-save-btn {
+  background: rgba(0, 191, 255, 0.3); /* Glass effect with vibrant blue */
+  color: white;
+  padding: 0.8rem 1.5rem;
+  border: 1px solid rgba(0, 191, 255, 0.5); /* Glass effect border */
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
-.profile-save-btn:hover, .profile-logout-btn:hover {
-  background: linear-gradient(135deg, rgba(97,160,255,0.32) 60%, rgba(255,255,255,0.18) 100%) !important;
-  box-shadow: 0 6px 24px rgba(97,160,255,0.18) !important;
-  border: 2px solid #61a0ff !important;
+.profile-save-btn:hover {
+  background-color: rgba(0, 191, 255, 0.4); /* Slightly more opaque on hover */
+  border-color: rgba(0, 191, 255, 0.6);
+}
+
+.profile-logout-btn {
+  background: rgba(255, 40, 40, 0.3); /* Glass effect with vibrant red */
+  color: white;
+  padding: 0.8rem 1.5rem;
+  border: 1px solid rgba(255, 40, 40, 0.5); /* Glass effect border */
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.profile-logout-btn:hover {
+  background-color: rgba(255, 40, 40, 0.4); /* Slightly more opaque on hover */
+  border-color: rgba(255, 40, 40, 0.6);
 }
 
 /* Responsive adjustments */
@@ -988,6 +1020,11 @@ body.dark-mode .moon {
   text-shadow: 0 0 10px rgba(0, 123, 255, 0.3); /* Subtle glow */
   transition: color var(--theme-transition-duration) ease,
               text-shadow var(--theme-transition-duration) ease;
+  background: rgba(255,255,255,0.12);
+  border-radius: 12px;
+  padding: 0.5em 1.2em;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+  -webkit-text-stroke: 1.5px #000;
 }
 
 .timer-controls {
@@ -1059,74 +1096,110 @@ body.dark-mode .moon {
   margin: 0 auto 1rem auto; /* Center the card horizontally and maintain bottom margin */
 }
 
-/* Inputs & Buttons */
-input, select, textarea {
-  background: rgba(255,255,255,0.15) !important;
-  border: 1.5px solid rgba(255,255,255,0.18) !important;
-  color: #fff !important;
-  border-radius: 10px !important;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
-  padding: 0.75rem 1rem !important;
-  font-size: 1rem !important;
-  transition: border-color 0.2s, background 0.2s;
-}
-input:focus, select:focus, textarea:focus {
-  border-color: #61a0ff !important;
-  background: rgba(255,255,255,0.22) !important;
-  outline: none !important;
-}
-input[readonly] {
-  background: rgba(255,255,255,0.10) !important;
-  color: #bbb !important;
+/* History Task Styles */
+.history-tasks-container {
+  padding: 0 1rem;
 }
 
-button, .profile-save-btn, .profile-logout-btn, .modal-save-btn {
-  background: linear-gradient(135deg, rgba(97,160,255,0.22) 60%, rgba(255,255,255,0.13) 100%) !important;
-  color: #fff !important;
-  border: 1.5px solid rgba(97,160,255,0.25) !important;
-  border-radius: 10px !important;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.10) !important;
-  font-weight: 600 !important;
-  font-size: 1rem !important;
-  padding: 0.75rem 1.2rem !important;
-  transition: background 0.2s, box-shadow 0.2s, border 0.2s;
-}
-button:hover, .profile-save-btn:hover, .profile-logout-btn:hover, .modal-save-btn:hover {
-  background: linear-gradient(135deg, rgba(97,160,255,0.32) 60%, rgba(255,255,255,0.18) 100%) !important;
-  box-shadow: 0 6px 24px rgba(97,160,255,0.18) !important;
-  border: 2px solid #61a0ff !important;
+.history-task {
+  position: relative;
+  margin-bottom: 1.5rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Task Progress Bar Glassy */
-.progress-bar {
-  background: rgba(255,255,255,0.10) !important;
-  box-shadow: 0 1.5px 8px rgba(255,255,255,0.08) inset !important;
-}
-.progress-bar::before {
-  filter: blur(1.5px);
+.history-task:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 
-/* Achievements, Profile, and Modal Glassy */
-.achievement-item, .modal-content, .profile-card, .profile-user-info {
-  background: rgba(255,255,255,0.10) !important;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 1.5px 8px rgba(255,255,255,0.08) inset !important;
-  border-radius: 16px !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
-  border: none !important;
+.completion-status-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 4px;
+  min-width: 100px;
+  height: 36px; /* Shorter fixed height for the wrapper */
+  box-sizing: border-box;
 }
 
-/* Remove harsh card borders */
-.card, .profile-card, .profile-user-info, .modal-content, .achievement-item {
-  border: none !important;
+.completion-status {
+  position: relative;
+  z-index: 1;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  padding: 0.3rem 0.8rem; /* Adjusted padding to control height */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  /* Removed height: 100% here */
+  box-sizing: border-box;
+  font-size: 0.9rem; /* Adjusted font size */
+  line-height: 1.2; /* Adjusted line height */
 }
 
-/* Responsive tweaks for glassy look */
-@media (max-width: 900px) {
-  .main-content {
-    padding: 1.5rem 0 1.5rem 0;
-  }
-  .card, .modal-content, .profile-card, .profile-user-info {
-    padding: 1.2rem !important;
-  }
+.delete-history-task-btn {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%; /* Ensure it matches the wrapper's height */
+  background-color: rgba(255, 40, 40, 0.1); /* Even more transparent for clear glass effect */
+  color: white;
+  border: 1px solid rgba(255, 40, 40, 0.2); /* Even more transparent border for clear glass effect */
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: translateY(100%);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  z-index: 2;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-sizing: border-box;
+  line-height: 1.2;
+}
+
+.delete-history-task-btn:hover {
+  background-color: rgba(255, 40, 40, 0.25); /* Slightly more opaque on hover */
+  border-color: rgba(255, 40, 40, 0.4); /* Slightly more opaque border on hover */
+}
+
+.completion-status-wrapper:hover .delete-history-task-btn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.completion-status-wrapper:hover .completion-status {
+  opacity: 0;
+  transform: translateY(-100%);
+}
+
+/* Styling for Completed and Expired status */
+.completion-status.completed {
+  background-color: rgba(40, 167, 69, 0.1); /* Even more transparent for clear glass effect */
+  color: white;
+  border: 1px solid rgba(40, 167, 69, 0.2); /* Even more transparent border for clear glass effect */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.completion-status.expired {
+  background-color: rgba(255, 40, 40, 0.1); /* Even more transparent for clear glass effect */
+  color: white;
+  border: 1px solid rgba(255, 40, 40, 0.2); /* Even more transparent border for clear glass effect */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.completion-date {
+  font-size: 0.9rem;
+  color: var(--text-color-secondary);
+  margin-top: 0.5rem;
+  text-align: right;
 }

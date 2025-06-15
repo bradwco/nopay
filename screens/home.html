@@ -22,6 +22,10 @@
           <img src="../assets/create.png" />
           Create
         </button>
+        <button class="nav-item" id="historyNavLink">
+          <img src="../assets/book.png" />
+          History
+        </button>
         <button class="nav-item" id="profileNavLink">
           <img src="../assets/profile.png" />
           Profile
@@ -36,13 +40,13 @@
       </div>
 
       <div id="homeContent" class="content-section active">
-      <div class="card weekly-progress">
-        <div class="card-header">
+        <div class="card weekly-progress">
+          <div class="card-header">
             <div class="progress-label">
               <img src="../assets/color-palette.png" alt="Total Progress Icon" class="weekly-progress-icon" />
-              <span><strong>Total Progress</strong></span>
+              <span><strong id="totalProgressLabel">Total Progress</strong></span>
             </div>
-            <div class="progress-bar blue" style="--progress-percentage: 75%;"></div>
+            <div class="progress-bar blue" id="totalProgressDisplay" style="--progress-percentage: 75%;"></div>
           </div>
         </div>
 
@@ -50,11 +54,14 @@
         <div id="tasksDisplayArea">
           <!-- Existing static task cards will be replaced by dynamic ones -->
           <!-- For now, I'll keep them as a reference to the structure -->
-
         </div>
       </div>
 
-      <div id="profileContent" class="content-section">
+      <div id="historyContent" class="content-section" style="display:none;">
+        <h2 style="margin-top:2rem; text-align:center; color:#e0e6f0; font-size:2rem; font-weight:700;">History</h2>
+      </div>
+
+      <div id="profileContent" class="content-section" style="display:none;">
         <!-- Profile page content will be dynamically loaded here by index.js -->
       </div>
 
@@ -67,23 +74,23 @@
           </div>
           <div class="modal-body">
             <div class="modal-field">
-              <label for="taskName">Name of task</label>
+              <label for="taskNameInput">Name of task</label>
               <input type="text" id="taskNameInput" placeholder="e.g., LeetCode, PyTorch project" />
             </div>
             <div class="modal-field">
-              <label for="hoursToComplete">Hours to Be Completed</label>
+              <label for="hoursToCompleteInput">Hours to Be Completed</label>
               <input type="number" id="hoursToCompleteInput" placeholder="e.g., 10.5" step="0.5" />
             </div>
             <div class="modal-field">
-              <label for="goalType">Goal Type</label>
+              <label for="goalTypeSelect">Goal Type</label>
               <select id="goalTypeSelect">
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
+                <option value="weekLong">Week Long</option>
+                <option value="monthLong">Month Long</option>
               </select>
             </div>
           </div>
           <div class="modal-footer">
-            <button class="modal-save-btn" id="createTaskSaveBtn">Save Task</button>
+            <button class="modal-save-btn" id="saveTaskBtn">Save Task</button>
           </div>
         </div>
       </div>
@@ -115,8 +122,8 @@
                 <option value="weekly">Weekly</option>
                 <option value="monthly">Monthly</option>
               </select>
-        </div>
-      </div>
+            </div>
+          </div>
           <div class="modal-footer">
             <button class="modal-save-btn" id="editTaskSaveBtn">Save Changes</button>
           </div>

@@ -2,7 +2,7 @@
 
 import { setupFirebaseAuthListenersAndHandlers, signOut, auth, setupProfilePageLogoutButton } from "./firebaseAuth";
 import { HOME_PAGE_URL, STARTUP_PAGE_URL, AUTH_PAGE_URL } from "./firebaseConfig";
-import { addTask, getTasks, deleteTask, getTotalProgress, incrementTaskCounter, updateTask, incrementTaskProgress, createUserProfile, getUserProfile } from "./firebaseStore";
+import { addTask, getTasks, deleteTask, getTotalProgress, incrementTaskCounter, updateTask, incrementTaskProgress, createUserProfile, getUserProfile, getHistoryTasks, checkAndMoveCompletedTask, deleteHistoryTask } from "./firebaseStore";
 import { checkAndGrantAchievements, renderAchievements } from "./achievements";
 // import { db, collection, query, where, getDocs, addDoc, doc, setDoc, serverTimestamp } from "./firebaseStore"; // Uncomment if you add Firestore logic here
 
@@ -75,8 +75,8 @@ const editTaskModalHtml = `
         <div class="modal-field">
           <label for="editGoalTypeSelect">Goal Type</label>
           <select id="editGoalTypeSelect">
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
+            <option value="weekLong">Week Long</option>
+            <option value="monthLong">Month Long</option>
           </select>
         </div>
       </div>
@@ -124,6 +124,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const profileContentDiv = document.getElementById('profileContent');
   const createTaskModal = document.getElementById('createTaskModal');
   const editTaskModal = document.getElementById('editTaskModal'); // Get reference to the edit modal
+  const historyContentDiv = document.getElementById('historyContent');
+  const saveTaskBtn = document.getElementById('saveTaskBtn'); // Get reference to the save task button
+  const editTaskSaveBtn = document.getElementById('editTaskSaveBtn'); // Get reference to the edit task save button
 
   // Append the loading spinner to the main content area once on DOMContentLoaded
   if (mainContent) {
@@ -198,10 +201,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Setup save task button listener - attached once
-  const saveTaskBtn = document.getElementById('createTaskSaveBtn');
   if (saveTaskBtn) {
     saveTaskBtn.addEventListener('click', handleSaveTask);
+  }
+
+  if (editTaskSaveBtn) {
+    editTaskSaveBtn.addEventListener('click', handleEditTask); // Attach new handler for editing
   }
 
   // Setup close button listener for Edit Task modal (top right X button) - attached once
@@ -219,44 +224,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Setup save changes button listener for Edit Task modal - attached once
-  const editTaskSaveBtn = document.getElementById('editTaskSaveBtn');
-  if (editTaskSaveBtn) {
-    editTaskSaveBtn.addEventListener('click', handleEditTask); // Attach new handler for editing
-  }
-
   // Sidebar navigation logic for sliding background
   const navItems = document.querySelectorAll('.nav-item');
   const navSlider = document.querySelector('.nav-slider');
   const homeNavLink = document.getElementById('homeNavLink');
   const createNavLink = document.getElementById('createNavLink');
   const profileNavLink = document.getElementById('profileNavLink');
+  const historyNavLink = document.getElementById('historyNavLink');
 
   // Store initial home content - this will now be the template for dynamic rendering
   const homeContentTemplate = document.getElementById('tasksDisplayArea').innerHTML;
 
   // Helper function to show a content div and hide others
   function showContentSection(sectionToShow) {
-      const contentSections = [homeContentDiv, profileContentDiv]; // Only manage primary content sections
-      if (createTaskModal) { // Add modal if it exists
+      const contentSections = [homeContentDiv, profileContentDiv, historyContentDiv]; // Add historyContentDiv
+      if (createTaskModal) {
           contentSections.push(createTaskModal);
       }
-
       contentSections.forEach(section => {
-          if (section) { // Ensure the element exists
-              section.classList.remove('fade-in'); // Remove fade-in from all
-              section.style.display = 'none'; // Hide all by default
+          if (section) {
+              section.classList.remove('fade-in');
+              section.style.display = 'none';
               section.classList.remove('active');
           }
       });
-
       if (sectionToShow) {
-          sectionToShow.style.display = 'block'; // Show the desired one (initially at opacity 0)
+          sectionToShow.style.display = 'block';
           sectionToShow.classList.add('active');
-          // Trigger fade-in after display is set
           setTimeout(() => {
             sectionToShow.classList.add('fade-in');
-          }, 10); // Small delay to ensure display:block is applied before transition
+          }, 10);
       }
   }
 
@@ -282,143 +279,171 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Function to render home content
   async function renderHomeContent(userId) {
+    const tasksDisplayArea = document.getElementById('tasksDisplayArea');
+    const totalProgressLabel = document.getElementById('totalProgressLabel');
+    const totalProgressDisplay = document.getElementById('totalProgressDisplay');
+
     console.log('renderHomeContent called.', new Date().toLocaleTimeString(), 'with userId:', userId);
-    if (mainContent) {
-      const tasksDisplayArea = document.getElementById('tasksDisplayArea');
-      const totalProgressDisplay = document.querySelector('.weekly-progress .progress-bar');
-      const totalProgressLabel = document.querySelector('.weekly-progress strong');
+    // Clear tasksDisplayArea before fetching and rendering to prevent duplicates
+    if (tasksDisplayArea) {
+      console.log('tasksDisplayArea content before clear:', tasksDisplayArea.innerHTML.length > 0 ? 'Has content' : 'Empty', 'Current child count:', tasksDisplayArea.childElementCount);
+      tasksDisplayArea.innerHTML = ''; // Clear existing content
+      console.log('tasksDisplayArea content after clear:', tasksDisplayArea.innerHTML.length > 0 ? 'Has content' : 'Empty', 'Current child count:', tasksDisplayArea.childElementCount);
+    }
 
-      if (tasksDisplayArea && totalProgressDisplay && totalProgressLabel) {
-        console.log('tasksDisplayArea content before clear:', tasksDisplayArea.innerHTML.length > 0 ? 'Has content' : 'Empty', 'Current child count:', tasksDisplayArea.childElementCount);
-        tasksDisplayArea.innerHTML = ''; // Clear existing tasks
-        console.log('tasksDisplayArea content after clear:', tasksDisplayArea.innerHTML.length > 0 ? 'Has content' : 'Empty', 'Current child count:', tasksDisplayArea.childElementCount);
-        console.log('renderHomeContent - userId:', userId ? userId : 'null');
-        if (userId) {
-          // Fetch and display Total Progress
-          const { success: progressSuccess, totalProgress } = await getTotalProgress(userId);
-          console.log('renderHomeContent - getTotalProgress success:', progressSuccess, 'totalProgress:', totalProgress);
-          if (progressSuccess) {
-            totalProgressLabel.textContent = `Total Progress - ${totalProgress}%`;
-            totalProgressDisplay.style.setProperty('--progress-percentage', `${totalProgress}%`);
-          } else {
-            console.error('Failed to fetch total progress.');
-            totalProgressLabel.textContent = 'Total Progress - Error';
-            totalProgressDisplay.style.setProperty('--progress-percentage', '0%');
-          }
-
-          // Fetch and display individual tasks
-          const { success, tasks } = await getTasks(userId);
-          console.log('renderHomeContent - getTasks success:', success, 'tasks length:', tasks ? tasks.length : 'null');
-          if (success) {
-            if (tasks.length === 0) {
-              tasksDisplayArea.innerHTML = '<p style="text-align: center; color: var(--text-color-secondary);">No tasks yet. Create one!</p>';
-              console.log('renderHomeContent - No tasks found.');
-            } else {
-              tasks.forEach(task => {
-                console.log(`Task: ${task.taskName}, currentProgress: ${task.currentProgress}, totalHours: ${task.totalHours}`);
-                const currentProgressPercentage = task.totalHours > 0 ? ((task.currentProgress || 0) / task.totalHours * 100).toFixed(0) : 0;
-                const taskCardHtml = `
-                  <div class="card task">
-                    <div class="task-header">
-                      <div class="task-left">
-                        <div class="task-icon-wrapper timer-icon-wrapper" data-task-id="${task.id}" data-task-name="${task.taskName}" style="background-color: ${task.taskColor};">
-                          <img src="../assets/timer.png" alt="Timer Icon" class="task-timer-icon" />
-                        </div>
-                        <span>${task.taskName} - <strong>${currentProgressPercentage}%</strong></span> <!-- Initial progress 0% -->
-                      </div>
-                      <span class="time">${task.frequency} | ${formatHoursToHMS(task.currentProgress || 0)} / ${formatHoursToHMS(task.totalHours)} Hours</span>
-                      <button class="edit-task-btn glassy-icon-btn" data-task-id="${task.id}" title="Edit">
-                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" fill="#222"/></svg>
-                      </button>
-                      <button class="delete-task-btn glassy-icon-btn" data-task-id="${task.id}" title="Delete">
-                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3V6zm2 3h14v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9zm3 2v9h2v-9H8zm4 0v9h2v-9h-2z" fill="#222"/></svg>
-                      </button>
-                    </div>
-                    <div class="progress-bar ${getTaskColorClassName(task.taskColor)}" style="--progress-percentage: ${currentProgressPercentage}%;"></div>
-                  </div>
-                `;
-                tasksDisplayArea.insertAdjacentHTML('beforeend', taskCardHtml);
-              });
-              console.log('renderHomeContent - Tasks rendered. Total tasks in DOM now:', tasksDisplayArea.childElementCount);
-              // Attach event listeners to delete and edit buttons after tasks are rendered
-              document.querySelectorAll('.delete-task-btn').forEach(button => {
-                button.addEventListener('click', async (event) => {
-                  const taskId = event.currentTarget.dataset.taskId;
-                  const taskCard = event.currentTarget.closest('.card.task'); // Get the parent task card
-                  const currentUserForDelete = auth.currentUser;
-
-                  if (currentUserForDelete && taskId && taskCard) {
-                    // Start delete animation
-                    taskCard.classList.add('deleting');
-
-                    // Wait for the animation to complete before actually deleting from Firebase and DOM
-                    setTimeout(async () => {
-                      const { success } = await deleteTask(currentUserForDelete.uid, taskId);
-                      if (success) {
-                        console.log('Task deleted successfully from UI.');
-                        taskCard.remove(); // Remove from DOM after successful deletion from Firebase
-                        // Re-render home content to update total progress and ensure layout is correct
-                        renderHomeContent(currentUserForDelete.uid);
-                      } else {
-                        console.error('Failed to delete task from Firebase.');
-                        taskCard.classList.remove('deleting'); // Revert animation if deletion fails
-                      }
-                    }, 500); // Match this duration to the CSS transition duration (0.5s)
-                  }
-                });
-              });
-
-              // Add event listener for edit buttons
-              document.querySelectorAll('.edit-task-btn').forEach(button => {
-                button.addEventListener('click', async (event) => {
-                  const taskId = event.currentTarget.dataset.taskId;
-                  const currentUserForEdit = auth.currentUser;
-                  if (currentUserForEdit && taskId) {
-                    // Fetch task data
-                    const { success, tasks } = await getTasks(currentUserForEdit.uid);
-                    if (success) {
-                      const taskToEdit = tasks.find(task => task.id === taskId);
-                      if (taskToEdit) {
-                        // Populate and show edit modal
-                        const editTaskModal = document.getElementById('editTaskModal');
-                        if (editTaskModal) {
-                          document.getElementById('editTaskId').value = taskToEdit.id;
-                          document.getElementById('editTaskNameInput').value = taskToEdit.taskName;
-                          document.getElementById('editHoursToCompleteInput').value = taskToEdit.totalHours;
-                          document.getElementById('editGoalTypeSelect').value = taskToEdit.frequency;
-                          document.getElementById('editCurrentHoursInput').value = taskToEdit.currentProgress || 0; // Populate current hours
-                          showContentSection(editTaskModal);
-                          editTaskModal.style.display = 'flex';
-                        }
-                      } else {
-                        console.error('Task not found for editing:', taskId);
-                      }
-                    } else {
-                      console.error('Failed to fetch tasks for editing.', tasks.error);
-                    }
-                  }
-                });
-              });
-
-              // Add event listener for timer icons
-              document.querySelectorAll('.timer-icon-wrapper').forEach(iconWrapper => {
-                iconWrapper.addEventListener('click', (event) => {
-                  const taskId = event.currentTarget.dataset.taskId;
-                  const taskName = event.currentTarget.dataset.taskName;
-                  openTimerModal(taskId, taskName);
-                });
-              });
-            }
-          } else {
-            tasksDisplayArea.innerHTML = '<p style="text-align: center; color: var(--text-color-secondary);">Error loading tasks.</p>';
-            console.error('Failed to fetch tasks:', tasks.error);
-            console.log('renderHomeContent - Error loading tasks.');
-          }
-        } else {
-          tasksDisplayArea.innerHTML = '<p style="text-align: center; color: var(--text-color-secondary);">Please log in to view tasks.</p>';
-          console.log('renderHomeContent - User not logged in (userId was null).');
-        }
+    if (userId) {
+      // Fetch and display Total Progress
+      const { success: progressSuccess, totalProgress } = await getTotalProgress(userId);
+      console.log('renderHomeContent - getTotalProgress success:', progressSuccess, 'totalProgress:', totalProgress);
+      if (progressSuccess) {
+        totalProgressLabel.textContent = `Total Progress - ${totalProgress}%`;
+        totalProgressDisplay.style.setProperty('--progress-percentage', `${totalProgress}%`);
+      } else {
+        console.error('Failed to fetch total progress.');
+        totalProgressLabel.textContent = 'Total Progress - Error';
+        totalProgressDisplay.style.setProperty('--progress-percentage', '0%');
       }
+
+      // Fetch and display individual tasks
+      const { success, tasks } = await getTasks(userId);
+      console.log('renderHomeContent - getTasks success:', success, 'tasks length:', tasks ? tasks.length : 'null');
+      if (success) {
+        // Clear existing tasks before rendering new ones
+        tasksDisplayArea.innerHTML = ''; 
+        if (tasks.length === 0) {
+          tasksDisplayArea.innerHTML = '<p style="text-align: center; color: var(--text-color-secondary);">No tasks yet. Create one!</p>';
+          console.log('renderHomeContent - No tasks found.');
+        } else {
+          let tasksMovedToHistory = false;
+          for (const task of tasks) {
+            // Check if task needs to be moved to history
+            const { success: checkSuccess, status } = await checkAndMoveCompletedTask(userId, task.id, task);
+            if (checkSuccess && status !== 'active') {
+              console.log(`Task ${task.id} moved to history on page load. Status: ${status}`);
+              tasksMovedToHistory = true;
+            }
+          }
+          
+          // If any tasks were moved, re-render home and history content to reflect changes
+          if (tasksMovedToHistory) {
+            console.log('Tasks moved to history, re-rendering home and history content.');
+            await renderHomeContent(userId); // Re-render home content to get updated active tasks
+            await renderHistoryContent(userId); // Re-render history content
+            return; // Exit to prevent re-rendering old tasks
+          }
+
+          // If no tasks were moved, proceed to render the current active tasks
+          tasks.forEach(task => {
+            console.log(`Task: ${task.taskName}, currentProgress: ${task.currentProgress}, totalHours: ${task.totalHours}`);
+            const currentProgressPercentage = task.totalHours > 0 ? ((task.currentProgress || 0) / task.totalHours * 100).toFixed(0) : 0;
+            const taskCardHtml = `
+              <div class="card task">
+                <div class="task-header">
+                  <div class="task-left">
+                    <div class="task-icon-wrapper timer-icon-wrapper" data-task-id="${task.id}" data-task-name="${task.taskName}" style="background-color: ${task.taskColor};">
+                      <img src="../assets/timer.png" alt="Timer Icon" class="task-timer-icon" />
+                    </div>
+                    <span>${task.taskName} - <strong>${currentProgressPercentage}%</strong></span> <!-- Initial progress 0% -->
+                  </div>
+                  <span class="time">${formatDateShort(task.startDate)} - ${formatDateShort(task.endDate)} | ${formatHoursToHMS(task.currentProgress || 0)} / ${formatHoursToHMS(task.totalHours)} Hours</span>
+                  <button class="edit-task-btn glassy-icon-btn" data-task-id="${task.id}" title="Edit">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" fill="#222"/></svg>
+                  </button>
+                  <button class="delete-task-btn glassy-icon-btn" data-task-id="${task.id}">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3V6zm2 3h14v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9zm3 2v9h2v-9H8zm4 0v9h2v-9h-2z" fill="#222"/></svg>
+                  </button>
+                </div>
+                <div class="progress-bar ${getTaskColorClassName(task.taskColor)}" style="--progress-percentage: ${currentProgressPercentage}%;"></div>
+              </div>
+            `;
+            tasksDisplayArea.insertAdjacentHTML('beforeend', taskCardHtml);
+          });
+          console.log('renderHomeContent - Tasks rendered. Total tasks in DOM now:', tasksDisplayArea.childElementCount);
+          // Attach event listeners to delete and edit buttons after tasks are rendered
+          document.querySelectorAll('.delete-task-btn').forEach(button => {
+            button.addEventListener('click', async (event) => {
+              const taskId = event.currentTarget.dataset.taskId;
+              const taskCard = event.currentTarget.closest('.card.task'); // Get the parent task card
+              const currentUserForDelete = auth.currentUser;
+
+              if (currentUserForDelete && taskId && taskCard) {
+                // Start delete animation
+                taskCard.classList.add('deleting');
+
+                // Wait for the animation to complete before actually deleting from Firebase and DOM
+                setTimeout(async () => {
+                  const { success } = await deleteTask(currentUserForDelete.uid, taskId);
+                  if (success) {
+                    console.log('Task deleted successfully from UI.');
+                    taskCard.remove(); // Remove from DOM after successful deletion from Firebase
+                    // Re-render home content to update total progress and ensure layout is correct
+                    renderHomeContent(currentUserForDelete.uid);
+                  } else {
+                    console.error('Failed to delete task from Firebase.');
+                    taskCard.classList.remove('deleting'); // Revert animation if deletion fails
+                  }
+                }, 500); // Match this duration to the CSS transition duration (0.5s)
+              }
+            });
+          });
+
+          // Add event listener for edit buttons
+          document.querySelectorAll('.edit-task-btn').forEach(button => {
+            button.addEventListener('click', async (event) => {
+              const taskId = event.currentTarget.dataset.taskId;
+              const currentUserForEdit = auth.currentUser;
+              if (currentUserForEdit && taskId) {
+                // Fetch task data
+                const { success, tasks } = await getTasks(currentUserForEdit.uid);
+                if (success) {
+                  const taskToEdit = tasks.find(task => task.id === taskId);
+                  if (taskToEdit) {
+                    // Map old frequency values to new ones for prefilling
+                    let displayFrequency = taskToEdit.frequency;
+                    if (displayFrequency === 'weekly') {
+                      displayFrequency = 'weekLong';
+                    } else if (displayFrequency === 'monthly') {
+                      displayFrequency = 'monthLong';
+                    }
+
+                    // Populate and show edit modal
+                    const editTaskModal = document.getElementById('editTaskModal');
+                    if (editTaskModal) {
+                      document.getElementById('editTaskId').value = taskToEdit.id;
+                      document.getElementById('editTaskNameInput').value = taskToEdit.taskName;
+                      document.getElementById('editHoursToCompleteInput').value = taskToEdit.totalHours;
+                      document.getElementById('editGoalTypeSelect').value = displayFrequency; // Use mapped frequency
+                      document.getElementById('editCurrentHoursInput').value = taskToEdit.currentProgress || 0; // Populate current hours
+                      showContentSection(editTaskModal);
+                      editTaskModal.style.display = 'flex';
+                    }
+                  } else {
+                    console.error('Task not found for editing:', taskId);
+                  }
+                } else {
+                  console.error('Failed to fetch tasks for editing.', tasks.error);
+                }
+              }
+            });
+          });
+
+          // Add event listener for timer icons
+          document.querySelectorAll('.timer-icon-wrapper').forEach(iconWrapper => {
+            iconWrapper.addEventListener('click', (event) => {
+              console.log('[Timer Button] Clicked! Task ID:', event.currentTarget.dataset.taskId);
+              const taskId = event.currentTarget.dataset.taskId;
+              const taskName = event.currentTarget.dataset.taskName;
+              openTimerModal(taskId, taskName);
+            });
+          });
+        }
+      } else {
+        console.error('renderHomeContent - Failed to fetch tasks.');
+        tasksDisplayArea.innerHTML = '<p style="text-align: center; color: var(--text-color-secondary);">Error loading tasks.</p>';
+      }
+    } else {
+      tasksDisplayArea.innerHTML = '<p style="text-align: center; color: var(--text-color-secondary);">Please log in to view your tasks.</p>';
+      console.warn('renderHomeContent - User not logged in.');
     }
   }
 
@@ -702,6 +727,13 @@ document.addEventListener('DOMContentLoaded', async () => {
               });
             }
             break;
+          case 'historyNavLink':
+            showContentSection(historyContentDiv);
+            const currentUserForHistory = auth.currentUser;
+            if (currentUserForHistory) {
+              await renderHistoryContent(currentUserForHistory.uid);
+            }
+            break;
           default:
             // Do nothing or handle other cases
             break;
@@ -737,13 +769,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const displayId = `${currentUser.uid.substring(0, 5)}-${taskName.replace(/\s/g, '').substring(0, 5)}-${newCount}`;
 
+      // Calculate start and end dates
+      const startDate = new Date();
+      let endDate = new Date(startDate);
+      if (frequency === 'weekLong') {
+        endDate.setDate(startDate.getDate() + 7);
+      } else if (frequency === 'monthLong') {
+        endDate.setMonth(startDate.getMonth() + 1);
+      }
+
       const taskData = {
         taskName,
         totalHours,
         frequency,
         taskColor,
         currentProgress: 0, // Initialize current progress to 0
-        createdAt: new Date().toISOString(),
+        createdAt: startDate.toISOString(),
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         displayId, // Add the generated display ID to task data
       };
 
@@ -753,7 +796,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Clear form fields
         document.getElementById('taskNameInput').value = '';
         document.getElementById('hoursToCompleteInput').value = '';
-        document.getElementById('goalTypeSelect').value = 'weekly'; // Reset to weekly
+        document.getElementById('goalTypeSelect').value = 'weekLong'; // Reset to weekLong
 
         // Hide the modal after successful save
         if (createTaskModal) {
@@ -785,7 +828,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const taskName = document.getElementById('editTaskNameInput').value;
     const totalHours = parseFloat(document.getElementById('editHoursToCompleteInput').value);
     const currentHours = parseFloat(document.getElementById('editCurrentHoursInput').value);
-    const frequency = document.getElementById('editGoalTypeSelect').value;
+    let selectedFrequency = document.getElementById('editGoalTypeSelect').value; // Get raw value from dropdown
+
+    console.log(`[handleEditTask] Raw Selected Frequency from dropdown: ${selectedFrequency}`);
 
     if (!taskId || !taskName || isNaN(totalHours) || totalHours <= 0 || isNaN(currentHours) || currentHours < 0) {
       alert('Please fill in all task details correctly, including current hours.');
@@ -794,23 +839,90 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const currentUser = auth.currentUser;
     if (currentUser) {
+      // Fetch the existing task to get its original startDate and other properties
+      const { success: fetchSuccess, tasks } = await getTasks(currentUser.uid);
+      if (!fetchSuccess || !tasks) {
+        console.error('[handleEditTask] Failed to fetch tasks for editing.');
+        alert('Failed to update task. Please try again.');
+        return;
+      }
+
+      const existingTask = tasks.find(task => task.id === taskId);
+      if (!existingTask) {
+        console.error('[handleEditTask] Existing task not found for ID:', taskId);
+        alert('Failed to update task: Task not found.');
+        return;
+      }
+
+      // Determine the effective frequency to use for update and comparison
+      let finalFrequencyForUpdate = selectedFrequency;
+
+      // If dropdown value is empty, use the frequency from the existing task
+      if (!finalFrequencyForUpdate) {
+        finalFrequencyForUpdate = existingTask.frequency;
+        console.log(`[handleEditTask] Selected Frequency was empty, defaulted to existing task\'s frequency: ${finalFrequencyForUpdate}`);
+      }
+
+      // Normalize finalFrequencyForUpdate to 'weekLong' or 'monthLong' for consistency
+      if (finalFrequencyForUpdate === 'weekly') {
+        finalFrequencyForUpdate = 'weekLong';
+      } else if (finalFrequencyForUpdate === 'monthly') {
+        finalFrequencyForUpdate = 'monthLong';
+      }
+
+      // Normalize existingTask.frequency for comparison purposes
+      let normalizedExistingFrequency = existingTask.frequency;
+      if (normalizedExistingFrequency === 'weekly') {
+        normalizedExistingFrequency = 'weekLong';
+      } else if (normalizedExistingFrequency === 'monthly') {
+        normalizedExistingFrequency = 'monthLong';
+      }
+
+      console.log(`[handleEditTask] Existing Task Frequency (from DB, normalized): ${normalizedExistingFrequency}`);
+      console.log(`[handleEditTask] New Selected Frequency (after default/normalization): ${finalFrequencyForUpdate}`);
+      console.log(`[handleEditTask] Frequency changed condition (comparison): ${normalizedExistingFrequency !== finalFrequencyForUpdate}`);
+
+      let updatedStartDate = existingTask.startDate;
+      let updatedEndDate = existingTask.endDate;
+
+      // Recalculate endDate only if the *normalized* frequency has truly changed
+      if (normalizedExistingFrequency !== finalFrequencyForUpdate) {
+        const startDateTime = new Date(existingTask.startDate); // Use existing start date
+        let newCalculatedEndDate = new Date(startDateTime); // Use a distinct variable for calculation
+        console.log(`[handleEditTask] Start Date Time for recalculation: ${startDateTime.toISOString()}`);
+        console.log(`[handleEditTask] Initial newCalculatedEndDate before modification: ${newCalculatedEndDate.toISOString()}`);
+
+        if (finalFrequencyForUpdate === 'weekLong') { // Use finalFrequencyForUpdate here
+          newCalculatedEndDate.setDate(startDateTime.getDate() + 7);
+          console.log(`[handleEditTask] Frequency is weekLong. New End Date after setDate: ${newCalculatedEndDate.toISOString()}`);
+        } else if (finalFrequencyForUpdate === 'monthLong') { // Use finalFrequencyForUpdate here
+          newCalculatedEndDate.setMonth(startDateTime.getMonth() + 1);
+          console.log(`[handleEditTask] Frequency is monthLong. New End Date after setMonth: ${newCalculatedEndDate.toISOString()}`);
+        }
+        updatedEndDate = newCalculatedEndDate.toISOString(); // Assign the updated date here
+        console.log(`[handleEditTask] Final updatedEndDate (ISO string): ${updatedEndDate}`);
+      }
+
       const updatedData = {
         taskName,
         totalHours,
-        currentProgress: currentHours, // Update current progress
-        frequency,
+        currentProgress: currentHours,
+        frequency: finalFrequencyForUpdate, // Save the normalized frequency
+        startDate: updatedStartDate,
+        endDate: updatedEndDate,
       };
 
-      const { success } = await updateTask(currentUser.uid, taskId, updatedData);
+      const { success, status } = await updateTask(currentUser.uid, taskId, updatedData);
       if (success) {
         alert('Task updated successfully!');
-        // Hide the modal
         editTaskModal.style.display = 'none';
-        // Refresh tasks on the home page
         showContentSection(homeContentDiv);
         renderHomeContent(currentUser.uid);
 
-        // Ensure Home tab is active and slider is updated
+        if (status !== 'active') {
+          await renderHistoryContent(currentUser.uid);
+        }
+
         navItems.forEach(nav => nav.classList.remove('active'));
         homeNavLink.classList.add('active');
         updateSliderPosition(homeNavLink);
@@ -993,11 +1105,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (auth.currentUser && currentTimerTaskId && elapsedSeconds > 0) {
       const hoursToAdd = elapsedSeconds / 3600;
       console.log(`Saving ${hoursToAdd.toFixed(4)} hours for task ${currentTimerTaskId}`);
-      const { success, error } = await incrementTaskProgress(auth.currentUser.uid, currentTimerTaskId, hoursToAdd);
+      const { success, status, error } = await incrementTaskProgress(auth.currentUser.uid, currentTimerTaskId, hoursToAdd); // Get status
       if (success) {
         console.log(`Successfully saved ${hoursToAdd.toFixed(2)} hours to task ${currentTimerTaskId}`);
         // Refresh home content to show updated progress only after successful save
         renderHomeContent(auth.currentUser.uid);
+
+        // If the task was completed/expired, also re-render history
+        if (status !== 'active') {
+          await renderHistoryContent(auth.currentUser.uid); 
+        }
       } else {
         console.error(`Failed to save task ${currentTimerTaskId}:`, error);
       }
@@ -1047,4 +1164,125 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
   });
+
+  // Format date range for display
+  function formatDateShort(dateStr) {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', year: 'numeric' });
+  }
+
+  // Function to render history tasks
+  async function renderHistoryContent(userId) {
+    const historyContentDiv = document.getElementById('historyContent');
+    if (!historyContentDiv) return;
+
+    console.log('[renderHistoryContent] Fetching history tasks for user:', userId);
+    const { success, tasks } = await getHistoryTasks(userId);
+    console.log('[renderHistoryContent] Fetched tasks success:', success, 'tasks:', tasks);
+    if (success) {
+      if (tasks.length === 0) {
+        historyContentDiv.innerHTML = `
+          <h2 style="margin-top:2rem; text-align:center; color:#e0e6f0; font-size:2rem; font-weight:700;">History</h2>
+          <p style="text-align: center; color: var(--text-color-secondary); margin-top: 1rem;">No completed tasks yet.</p>
+        `;
+      } else {
+        // Sort tasks by completion date, most recent first
+        tasks.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
+
+        let historyHtml = `
+          <h2 style="margin-top:2rem; text-align:center; color:#e0e6f0; font-size:2rem; font-weight:700;">History</h2>
+          <div class="history-tasks-container" style="max-width: 800px; margin: 2rem auto;">
+        `;
+
+        tasks.forEach(task => {
+          const completionDate = new Date(task.completedAt);
+          const formattedDate = completionDate.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+
+          const finalProgressPercentage = task.totalHours > 0 
+            ? ((task.finalProgress || 0) / task.totalHours * 100).toFixed(0) 
+            : 0;
+
+          historyHtml += `
+            <div class="card task history-task">
+              <div class="task-header">
+                <div class="task-left">
+                  <div class="task-icon-wrapper" style="background-color: ${task.taskColor};">
+                    <img src="../assets/timer.png" alt="Timer Icon" class="task-timer-icon" />
+                  </div>
+                  <span>${task.taskName} - <strong>${finalProgressPercentage}%</strong></span>
+                </div>
+                <span class="time">
+                  ${formatDateShort(task.startDate)} - ${formatDateShort(task.endDate)} | 
+                  ${formatHoursToHMS(task.finalProgress || 0)} / ${formatHoursToHMS(task.totalHours)} Hours
+                </span>
+                <div class="completion-status-wrapper" data-task-id="${task.id}">
+                  <span class="completion-status ${task.completionStatus}" style="
+                    border-radius: 4px;
+                    font-size: 0.9rem;
+                    font-weight: 500;
+                    ${task.completionStatus === 'completed' ? 'background-color: rgba(40, 167, 69, 0.7); color: white; border: 1px solid rgba(40, 167, 69, 0.9); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);' : 'background-color: rgba(255, 40, 40, 0.7); color: white; border: 1px solid rgba(255, 40, 40, 0.9); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);'}
+                  ">
+                    ${task.completionStatus === 'completed' ? 'Completed' : 'Expired'}
+                  </span>
+                  <button class="delete-history-task-btn" data-task-id="${task.id}">Delete</button>
+                </div>
+              </div>
+              <div class="progress-bar ${getTaskColorClassName(task.taskColor)}" style="--progress-percentage: ${finalProgressPercentage}%;"></div>
+              <div class="completion-date" style="
+                text-align: right;
+                font-size: 0.9rem;
+                color: var(--text-color-secondary);
+                margin-top: 0.5rem;
+              ">
+                ${formattedDate}
+              </div>
+            </div>
+          `;
+          console.log(`Rendered history task: ID=${task.id}, Name=${task.taskName}, Status=${task.completionStatus}`);
+        });
+
+        historyHtml += '</div>';
+        historyContentDiv.innerHTML = historyHtml;
+
+        // Attach event listeners to the new delete buttons
+        document.querySelectorAll('.delete-history-task-btn').forEach(button => {
+          button.addEventListener('click', handleDeleteHistoryTask);
+        });
+      }
+    } else {
+      historyContentDiv.innerHTML = `
+        <h2 style="margin-top:2rem; text-align:center; color:#e0e6f0; font-size:2rem; font-weight:700;">History</h2>
+        <p style="text-align: center; color: var(--text-color-secondary); margin-top: 1rem;">Error loading history.</p>
+      `;
+    }
+  }
+
+  // New function to handle deleting history tasks
+  async function handleDeleteHistoryTask(event) {
+    const taskId = event.target.dataset.taskId;
+    if (!taskId) {
+      console.error('No task ID found for deletion.');
+      return;
+    }
+
+    if (confirm('Are you sure you want to delete this historical task? This action cannot be undone.')) {
+      if (auth.currentUser) {
+        const { success, error } = await deleteHistoryTask(auth.currentUser.uid, taskId);
+        if (success) {
+          console.log('Historical task deleted successfully.', taskId);
+          // Re-render history content to update the display
+          await renderHistoryContent(auth.currentUser.uid);
+        } else {
+          console.error('Failed to delete historical task:', error);
+          alert('Failed to delete task. Please try again.');
+        }
+      } else {
+        console.warn('User not authenticated. Cannot delete historical task.');
+      }
+    }
+  }
 }); 

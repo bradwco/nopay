@@ -25,7 +25,7 @@ export const getTasks = async (userId) => {
     const querySnapshot = await getDocs(q);
     const tasks = [];
     querySnapshot.forEach((doc) => {
-      tasks.push({ id: doc.id, ...doc.data() });
+      tasks.push({ ...doc.data(), id: doc.id });
     });
     console.log('Tasks fetched successfully for user:', userId, tasks);
     return { success: true, tasks };
@@ -49,16 +49,103 @@ export const deleteTask = async (userId, taskId) => {
   }
 };
 
-// Function to update an existing task
+// Function to check if a task is completed and move it to history if needed
+export const checkAndMoveCompletedTask = async (userId, taskId, taskData) => {
+  try {
+    const today = new Date();
+    // FOR TESTING ONLY: Temporarily set today to a future date to test expiration logic.
+    // REMEMBER TO REMOVE THIS LINE AFTER TESTING.
+    // Example: December 31st, 2025
+    // today.setFullYear(2025, 11, 31); // Month is 0-indexed, so 11 is December
+    
+    const rawEndDate = taskData.endDate; // Keep raw end date for logging
+    const endDate = new Date(rawEndDate);
+    
+    // Ensure currentProgress and totalHours are numbers for comparison
+    const currentProgress = parseFloat(taskData.currentProgress || 0);
+    const totalHours = parseFloat(taskData.totalHours || 0);
+
+    const isCompleted = currentProgress >= totalHours;
+    const isExpired = today > endDate;
+
+    console.log(`[checkAndMoveCompletedTask] Task ID: ${taskId}`);
+    console.log(`[checkAndMoveCompletedTask] Raw End Date: ${rawEndDate}`);
+    console.log(`[checkAndMoveCompletedTask] Parsed End Date: ${endDate.toISOString()}`);
+    console.log(`[checkAndMoveCompletedTask] Today's Date: ${today.toISOString()}`);
+    console.log(`[checkAndMoveCompletedTask] Current Progress: ${currentProgress}, Total Hours: ${totalHours}`);
+    console.log(`[checkAndMoveCompletedTask] isCompleted: ${isCompleted}, isExpired: ${isExpired}`);
+    console.log(`[checkAndMoveCompletedTask] Evaluating condition: (isCompleted || isExpired) = ${isCompleted || isExpired}`);
+
+    if (isCompleted || isExpired) {
+      console.log(`[checkAndMoveCompletedTask] CONDITION MET: Entering move/delete block for task: ${taskId}`);
+      // Add completion status and date to task data
+      const completedTaskData = {
+        ...taskData,
+        completedAt: new Date().toISOString(),
+        completionStatus: isCompleted ? 'completed' : 'expired',
+        finalProgress: currentProgress // Use the numeric currentProgress
+      };
+
+      // Add to HistoryTasks collection
+      const historyTasksCollectionRef = collection(db, 'HistoryTasks', userId, 'UserHistoryTasks');
+      console.log(`[checkAndMoveCompletedTask] Adding task ${taskId} to HistoryTasks...`);
+      await addDoc(historyTasksCollectionRef, completedTaskData);
+      console.log(`[checkAndMoveCompletedTask] Task ${taskId} successfully added to HistoryTasks.`);
+      console.log(`[checkAndMoveCompletedTask] Proceeding to delete active task...`);
+
+      // Attempt to delete from active Tasks collection
+      const taskDocRef = doc(db, 'Tasks', userId, 'UserTasks', taskId);
+      console.log(`[checkAndMoveCompletedTask] Attempting to delete active task: ${taskId} at path: ${taskDocRef.path}`);
+      await deleteDoc(taskDocRef);
+      console.log(`[checkAndMoveCompletedTask] Task ${taskId} successfully deleted from active Tasks collection.`);
+
+      console.log(`[checkAndMoveCompletedTask] Task ${taskId} moved to history. Status: ${completedTaskData.completionStatus}`);
+      return { success: true, status: completedTaskData.completionStatus };
+    }
+
+    console.log(`[checkAndMoveCompletedTask] Task ${taskId} is active. No move needed.`);
+    return { success: true, status: 'active' };
+  } catch (error) {
+    console.error(`[checkAndMoveCompletedTask] Error processing task ${taskId}:`, error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Modify updateTask to check completion status
 export const updateTask = async (userId, taskId, updatedData) => {
   try {
     const taskDocRef = doc(db, 'Tasks', userId, 'UserTasks', taskId);
-    await setDoc(taskDocRef, updatedData, { merge: true }); // Use setDoc with merge to update specific fields
-    console.log('Task updated successfully:', taskId);
-    await calculateAndStoreTotalProgress(userId); // Recalculate total progress after updating
-    return { success: true };
+    
+    // Get current task data
+    const taskDoc = await getDoc(taskDocRef);
+    if (!taskDoc.exists()) {
+      throw new Error('Task not found');
+    }
+
+    const currentTaskData = taskDoc.data();
+    const mergedData = { ...currentTaskData, ...updatedData };
+
+    // Check if task should be moved to history
+    const { success: checkSuccess, status } = await checkAndMoveCompletedTask(userId, taskId, mergedData);
+    
+    if (checkSuccess && status !== 'active') {
+      // If task was successfully moved to history (completed or expired), no further update to active tasks is needed.
+      await calculateAndStoreTotalProgress(userId); // Recalculate total progress since a task was moved/deleted
+      return { success: true, status };
+    } else if (checkSuccess && status === 'active') {
+      // Only update if task is still active
+      await setDoc(taskDocRef, updatedData, { merge: true });
+      console.log('[updateTask] Task updated successfully:', taskId);
+    } else if (!checkSuccess) {
+      console.error('[updateTask] Failed to check/move task status, proceeding with update to avoid data loss', taskId);
+      // If checkAndMoveCompletedTask failed, still try to update the task to avoid data loss.
+      await setDoc(taskDocRef, updatedData, { merge: true });
+    }
+
+    await calculateAndStoreTotalProgress(userId);
+    return { success: true, status };
   } catch (error) {
-    console.error('Error updating task:', error);
+    console.error('[updateTask] Error updating task:', error);
     return { success: false, error: error.message };
   }
 };
@@ -147,20 +234,44 @@ export const calculateAndStoreTotalProgress = async (userId) => {
   }
 };
 
+// Modify incrementTaskProgress to check completion status
 export const incrementTaskProgress = async (userId, taskId, hoursToIncrement) => {
   try {
     const taskDocRef = doc(db, 'Tasks', userId, 'UserTasks', taskId);
     
-    // Use FieldValue.increment to atomically add to currentProgress
+    // Get current task data
+    const taskDoc = await getDoc(taskDocRef);
+    if (!taskDoc.exists()) {
+      throw new Error('Task not found');
+    }
+
+    const currentTaskData = taskDoc.data();
+    const newProgress = parseFloat((currentTaskData.currentProgress || 0)) + hoursToIncrement; // Ensure currentProgress is float
+    
+    // Update progress
     await setDoc(taskDocRef, {
-      currentProgress: increment(hoursToIncrement)
+      currentProgress: newProgress
     }, { merge: true });
 
-    console.log(`Task ${taskId} progress incremented by ${hoursToIncrement} hours.`);
-    await calculateAndStoreTotalProgress(userId); // Recalculate total progress after updating
-    return { success: true };
+    // Check if task should be moved to history
+    const updatedTaskData = { ...currentTaskData, currentProgress: newProgress };
+    const { success: checkSuccess, status } = await checkAndMoveCompletedTask(userId, taskId, updatedTaskData);
+
+    console.log(`[incrementTaskProgress] Task ${taskId} progress incremented by ${hoursToIncrement} hours.`);
+    
+    if (checkSuccess && status !== 'active') {
+      // If task was successfully moved to history (completed or expired), no further processing for active task.
+      await calculateAndStoreTotalProgress(userId); // Recalculate total progress since a task was moved/deleted
+      return { success: true, status };
+    } else if (!checkSuccess) {
+      console.error('[incrementTaskProgress] Failed to check/move task status, proceeding with current progress save', taskId);
+      // If checkAndMoveCompletedTask failed, still ensure progress is saved.
+    }
+
+    await calculateAndStoreTotalProgress(userId);
+    return { success: true, status };
   } catch (error) {
-    console.error('Error incrementing task progress:', error);
+    console.error('[incrementTaskProgress] Error incrementing task progress:', error);
     return { success: false, error: error.message };
   }
 };
@@ -200,6 +311,37 @@ export const getUserProfile = async (userId) => {
     }
   } catch (error) {
     console.error('Error getting user profile:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Function to get history tasks for a specific user
+export const getHistoryTasks = async (userId) => {
+  try {
+    const userHistoryTasksCollectionRef = collection(db, 'HistoryTasks', userId, 'UserHistoryTasks');
+    const q = query(userHistoryTasksCollectionRef);
+    const querySnapshot = await getDocs(q, { source: 'server' });
+    const tasks = [];
+    querySnapshot.forEach((doc) => {
+      tasks.push({ ...doc.data(), id: doc.id });
+    });
+    console.log('History tasks fetched successfully from server for user:', userId, tasks);
+    return { success: true, tasks };
+  } catch (error) {
+    console.error('Error getting history tasks:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Function to delete a history task
+export const deleteHistoryTask = async (userId, historyTaskId) => {
+  try {
+    const historyTaskDocRef = doc(db, 'HistoryTasks', userId, 'UserHistoryTasks', historyTaskId);
+    await deleteDoc(historyTaskDocRef);
+    console.log('History task deleted successfully:', historyTaskId);
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting history task:', error);
     return { success: false, error: error.message };
   }
 };
