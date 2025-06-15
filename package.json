@@ -1,0 +1,21 @@
+{
+  "dependencies": {
+    "@auth0/auth0-react": "^2.3.0",
+    "@auth0/auth0-spa-js": "^2.2.0",
+    "firebase": "^11.9.1"
+  },
+  "name": "nopay",
+  "version": "1.0.0",
+  "main": "test.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "webpack": "^5.99.9",
+    "webpack-cli": "^6.0.1"
+  }
+}

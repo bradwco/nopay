@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Nopay – Home</title>
   <link rel="stylesheet" href="../styles/home.css" />
+  <script src="../dist/auth.bundle.js"></script>
+  <script src="../dist/firebase.bundle.js"></script>
 </head>
 <body>
   <div class="container">
@@ -31,6 +33,7 @@
     <main class="main-content">
       <div class="top-bar">
         <p>Current User &gt; <strong>bradwco</strong></p>
+        <button id="logoutBtn"> Temp Logout</button>
       </div>
 
       <div class="card weekly-progress">
@@ -85,7 +88,7 @@
         </div>
         <div class="progress-bar brown"></div>
       </div>
-    </main>
+    </main> 
   </div>
 </body>
 </html>
