@@ -4,43 +4,43 @@
   --radius: 12px;
   --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 
-  /* New Theme Variables */
+  /* Default Theme Variables (Dark Mode) */
+  --bg-primary: #1C2036;
+  --bg-secondary: #2C3048;
+  --text-color-primary: #eeeeee;
+  --text-color-secondary: #bbbbbb;
+  --border-color: #4A506A;
+  --accent-color-blue: #007bff;
+  --accent-color-red: #ff8c94;
+  --accent-color-green: #a8e6cf;
+  --modal-glow-color: rgba(170, 150, 255, 0.2);
+
+  /* New Toggle Specific Variables (Adapted to px) */
+  --toggle-height-val: 40px;
+  --toggle-width-val: 75px;
+  --toggle-btn-size: 30px;
+  --toggle-padding: 5px;
+
+  --toggle-bg-light: #9ee3fb;
+  --toggle-bg-dark: #423966;
+
+  --sun-color: #fdd835;
+  --moon-color: #D9FBFF;
+  --toggle-fg-light: #ffffff;
+  --toggle-fg-dark: #ffffff;
+
+  /* Add transition duration variable */
+  --theme-transition-duration: 0.5s;
+}
+
+body:not(.dark-mode) {
   --bg-primary: var(--light);
   --bg-secondary: #ffffff;
   --text-color-primary: #222;
   --text-color-secondary: #666;
   --border-color: #e0e0e0;
-  --accent-color-blue: #007bff;
-  --accent-color-red: #ff8c94; /* Pastel red */
-  --accent-color-green: #a8e6cf; /* Pastel green */
-
-  /* New Toggle Specific Variables (Adapted to px) */
-  --toggle-height-val: 40px; /* Reduced for better fit */
-  --toggle-width-val: 75px;  /* Reduced for better fit */
-  --toggle-btn-size: 30px;  /* Size of the moon/sun circle */
-  --toggle-padding: 5px;   /* Padding inside the toggle container */
-
-  --toggle-bg-light: #9ee3fb; /* Day background */
-  --toggle-bg-dark: #423966;  /* Night background */
-
-  --sun-color: #fdd835;
-  --moon-color: #D9FBFF;
-  --toggle-fg-light: #ffffff; /* Foreground color for light mode toggle (sun) */
-  --toggle-fg-dark: #ffffff;  /* Foreground color for dark mode toggle (moon) */
-
-  /* Add transition duration variable */
-  --theme-transition-duration: 0.5s;
-  --modal-glow-color: rgba(255, 255, 170, 0.2); /* Whitish/yellowish glow for light mode */
-}
-
-body.dark-mode {
-  --bg-primary: #1C2036; /* Blended dark mode background (current + bluish-gray) */
-  --bg-secondary: #2C3048; /* Slightly lighter secondary background */
-  --text-color-primary: #eeeeee;
-  --text-color-secondary: #bbbbbb;
-  --border-color: #4A506A;
-  --shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
-  --modal-glow-color: rgba(170, 150, 255, 0.2); /* Purplish glow for dark mode */
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --modal-glow-color: rgba(255, 255, 170, 0.2);
 }
 
 body {

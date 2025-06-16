@@ -13,7 +13,7 @@ const firebaseAppConfig = {
 const app = initializeApp(firebaseAppConfig);
 
 const HOME_PAGE_URL = "/screens/home.html";
-const STARTUP_PAGE_URL = "/screens/startup.html";
+const STARTUP_PAGE_URL = "/startup.html";
 const AUTH_PAGE_URL = "/screens/auth.html";
 
 export { app, HOME_PAGE_URL, STARTUP_PAGE_URL, AUTH_PAGE_URL }; 
