@@ -438,8 +438,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           });
         }
       } else {
-        tasksDisplayArea.innerHTML = '<p style="text-align: center; color: var(--text-color-secondary);">Please log in to view your tasks.</p>';
-        console.warn('renderHomeContent - User not logged in.');
+        console.error('renderHomeContent - Failed to fetch tasks.');
+        tasksDisplayArea.innerHTML = '<p style="text-align: center; color: var(--text-color-secondary);">Error loading tasks.</p>';
       }
     } else {
       tasksDisplayArea.innerHTML = '<p style="text-align: center; color: var(--text-color-secondary);">Please log in to view your tasks.</p>';
@@ -461,24 +461,485 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Apply saved theme on load
   const savedTheme = localStorage.getItem('theme');
+  if(!savedTheme) {
+    localStorage.setItem('theme', 'dark');
+  }
   if (savedTheme === 'dark') {
     document.body.classList.add('dark-mode');
   } else if (savedTheme === 'light') {
     document.body.classList.remove('dark-mode');
-  } else {
-    // If no theme is saved, default to dark mode
-    document.body.classList.add('dark-mode');
-    localStorage.setItem('theme', 'dark');
   }
 
   // Set initial position of the slider based on the active item on page load
   const initialActiveItem = document.querySelector('.nav-item.active');
   if (initialActiveItem) {
-    updateSliderPosition(initialActiveItem);
+    // For initial load, just set position without animation
+    if (navSlider) {
+        navSlider.style.transition = 'none'; // Temporarily disable transition
+        navSlider.style.opacity = '1';
+        navSlider.style.transform = 'translateX(0)';
+        navSlider.style.top = `${initialActiveItem.offsetTop}px`;
+        navSlider.style.height = `${initialActiveItem.offsetHeight}px`;
+        // Re-enable transition after a very short delay to allow layout to settle
+        setTimeout(() => {
+            navSlider.style.transition = 'top 0.3s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.2s ease-out, transform 0.2s ease-out';
+        }, 10);
+    }
+    // Ensure home content is rendered if home is initially active
+    if (initialActiveItem.id === 'homeNavLink') {
+      // renderHomeContent(auth.currentUser ? auth.currentUser.uid : null); // Removed: now solely triggered by 'userAuthenticated' event
+    }
   }
 
-  // Firebase Auth State Listener
-  setupFirebaseAuthListenersAndHandlers();
+  // Listen for the custom event and render home content if on home page
+  document.addEventListener('userAuthenticated', async (event) => { // Made async to await getUserProfile
+    console.log('userAuthenticated event received. Path:', window.location.pathname, 'User ID:', event.detail.uid); // Log event reception
+
+    // Only render home content if the user is currently on the home page
+    if (window.location.pathname.endsWith('home.html')) {
+      console.log('User authenticated event: On home.html, proceeding to render home content.');
+      
+      const homeContentDiv = document.getElementById('homeContent');
+      if (homeContentDiv) {
+        console.log('userAuthenticated: Found homeContentDiv. Current display:', homeContentDiv.style.display, 'classList:', homeContentDiv.classList);
+        
+        // Ensure homeContentDiv is visible and active on authentication
+        homeContentDiv.style.display = 'block';
+        homeContentDiv.classList.add('active');
+        
+        // Add fade-in class after a very small delay to ensure display:block is processed
+        setTimeout(() => {
+          homeContentDiv.classList.add('fade-in');
+          console.log('userAuthenticated: Added fade-in class to homeContentDiv. New classList:', homeContentDiv.classList);
+        }, 10);
+
+        // Render home content (tasks, total progress etc.)
+        console.log('userAuthenticated: Calling renderHomeContent for userId:', event.detail.uid);
+        await renderHomeContent(event.detail.uid); // Pass the userId from the event
+        console.log('userAuthenticated: renderHomeContent finished.');
+
+      } else {
+        console.warn('userAuthenticated: homeContentDiv not found!');
+      }
+
+      // Update the displayed username at the top
+      const currentUsernameDisplay = document.getElementById('currentUsernameDisplay');
+      if (currentUsernameDisplay && event.detail.uid) {
+        console.log('userAuthenticated: Updating currentUsernameDisplay.');
+        const { success, profile } = await getUserProfile(event.detail.uid); // Fetch profile
+        if (success && profile && profile.username) {
+          currentUsernameDisplay.textContent = profile.username; // Use saved username
+        } else if (event.detail.email) {
+          currentUsernameDisplay.textContent = event.detail.email; // Fallback to email
+        }
+      } else {
+        console.warn('userAuthenticated: currentUsernameDisplay not found or no user ID.');
+      }
+    }
+  });
+
+  navItems.forEach(item => {
+    item.addEventListener('click', async () => { // Made async to await Firebase calls
+      // Prevent default to avoid immediate page jump if hrefs were present
+      // event.preventDefault(); // Uncomment if you add href to nav-items
+
+      // Remove active class from all items
+      navItems.forEach(nav => nav.classList.remove('active'));
+
+      // Add active class to the clicked item
+      item.classList.add('active');
+
+      // Update slider position with the new animation sequence
+      updateSliderPosition(item);
+
+      // Update main content based on clicked item
+      const homeContentDiv = document.getElementById('homeContent');
+      const profileContentDiv = document.getElementById('profileContent');
+      const createTaskModal = document.getElementById('createTaskModal');
+
+      // Hide all content sections first // Removed: now handled by showContentSection
+      // document.querySelectorAll('.content-section').forEach(section => {
+      //   section.style.display = 'none';
+      //   section.classList.remove('active');
+      // });
+
+      if (mainContent) {
+        switch (item.id) {
+          case 'homeNavLink':
+            showContentSection(homeContentDiv);
+            // renderHomeContent(auth.currentUser ? auth.currentUser.uid : null); // Removed: now solely triggered by 'userAuthenticated' event
+            break;
+          case 'createNavLink':
+            showContentSection(createTaskModal); // Show modal instead of other content
+            createTaskModal.style.display = 'flex'; // Ensure it's flex for modal display
+            break;
+          case 'profileNavLink':
+            showContentSection(profileContentDiv);
+            profileContentDiv.innerHTML = profilePageHtml; // Render profile content directly into its container
+            
+            const profileLoadingSpinner = document.getElementById('profileLoadingSpinner');
+            if (profileLoadingSpinner) {
+              profileLoadingSpinner.style.display = 'flex'; // Show spinner
+            }
+
+            // Setup listeners for dynamically loaded profile content
+            setupProfilePageLogoutButton();
+            setupThemeToggle(); // Setup theme toggle for the new content
+
+            // Fetch and display user profile data
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+              // Check and grant achievements before fetching and displaying profile
+              await checkAndGrantAchievements(currentUser.uid, currentUser.email);
+
+              // Populate the email field immediately if currentUser exists
+              const profileEmailInput = document.getElementById('profileEmail');
+              if (profileEmailInput && currentUser.email) {
+                profileEmailInput.value = currentUser.email;
+              }
+
+              const { success, profile } = await getUserProfile(currentUser.uid);
+              console.log('Profile fetch result:', { success, profile }); // Debugging: log profile data
+              if (success && profile) {
+                const displayedUsername = document.getElementById('displayedUsername');
+                const profileUsernameInput = document.getElementById('profileUsername');
+                console.log('Fetched username:', profile.username); // Debugging: log fetched username
+                if (displayedUsername) {
+                  displayedUsername.textContent = profile.username || currentUser.email; // Display saved username or email
+                }
+                if (profileUsernameInput) {
+                  profileUsernameInput.value = profile.username || currentUser.email; // Set input field value
+                }
+                // Render achievements
+                renderAchievements(profile.achievements, 'achievementsGrid');
+
+              } else if (currentUser.email) {
+                // If no profile found, but user is logged in, display email in input
+                const displayedUsername = document.getElementById('displayedUsername');
+                const profileUsernameInput = document.getElementById('profileUsername');
+                console.log('Using email as fallback:', currentUser.email); // Debugging: log fallback email
+                if (displayedUsername) {
+                  displayedUsername.textContent = currentUser.email;
+                }
+                if (profileUsernameInput) {
+                  profileUsernameInput.value = currentUser.email;
+                }
+                // Render empty achievements if no profile
+                renderAchievements([], 'achievementsGrid');
+              }
+            }
+            // Show spinner for minimum 0.5s and maximum 3s
+            const minimumSpinnerDisplayTime = 500; // 0.5 seconds minimum
+            const maximumSpinnerDisplayTime = 3000; // 3 seconds maximum
+            const startTime = Date.now();
+
+            const hideSpinner = () => {
+                const elapsedTime = Date.now() - startTime;
+                const remainingTime = Math.min(
+                    Math.max(minimumSpinnerDisplayTime - elapsedTime, 0), // Ensure minimum time
+                    maximumSpinnerDisplayTime - elapsedTime // Ensure maximum time
+                );
+
+                if (remainingTime > 0) {
+                    setTimeout(() => {
+                        if (profileLoadingSpinner) {
+                            profileLoadingSpinner.style.display = 'none';
+                        }
+                    }, remainingTime);
+                } else {
+                    if (profileLoadingSpinner) {
+                        profileLoadingSpinner.style.display = 'none';
+                    }
+                }
+            };
+            hideSpinner();
+
+            // Attach event listener for Save Changes button on profile page
+            const saveChangesBtn = document.getElementById('saveChangesBtn');
+            if (saveChangesBtn) {
+              saveChangesBtn.addEventListener('click', async () => {
+                const currentUser = auth.currentUser;
+                if (currentUser) {
+                  const usernameInput = document.getElementById('profileUsername');
+                  const newUsername = usernameInput ? usernameInput.value : currentUser.email;
+                  console.log('Attempting to save username:', newUsername); // Debugging: log username being saved
+
+                  // Fetch existing profile to preserve other fields
+                  const { success: fetchExistingSuccess, profile: existingProfile } = await getUserProfile(currentUser.uid);
+                  let profilePictureToSave = "";
+                  let achievementsToSave = [];
+                  let themeSettingToSave = false; // Default to false (light mode)
+
+                  if (fetchExistingSuccess && existingProfile) {
+                    profilePictureToSave = existingProfile.profilePicture || "";
+                    achievementsToSave = existingProfile.achievements || [];
+                    // Use the theme setting from the existing profile as a base
+                    themeSettingToSave = existingProfile.themeSetting || false; 
+                  }
+
+                  // Override themeSettingToSave with the current UI state of the theme toggle
+                  const themeToggleElement = document.getElementById('themeToggle');
+                  if (themeToggleElement && themeToggleElement.classList.contains('dark-mode')) { // Assuming 'dark-mode' class indicates dark theme
+                    themeSettingToSave = true;
+                  } else if (themeToggleElement && themeToggleElement.classList.contains('light-mode')) { // Assuming 'light-mode' class indicates light theme
+                    themeSettingToSave = false;
+                  } else if (document.body.classList.contains('dark-mode')) { // Fallback check on body if toggle doesn't have it
+                      themeSettingToSave = true;
+                  } else if (document.body.classList.contains('light-mode')) { // Fallback check on body if toggle doesn't have it
+                      themeSettingToSave = false;
+                  } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) { // Fallback to system preference
+                      // This is a last resort, if no explicit theme is set by the toggle
+                      themeSettingToSave = true; 
+                  }
+
+                  const { success } = await createUserProfile(
+                    currentUser.uid,
+                    newUsername,
+                    achievementsToSave,
+                    themeSettingToSave,
+                    profilePictureToSave
+                  );
+
+                  if (success) {
+                    alert('Profile changes saved successfully!');
+                    // Re-fetch and display updated username and achievements after save
+                    const { success: reFetchSuccess, profile: reFetchedProfile } = await getUserProfile(currentUser.uid);
+                    console.log('Profile re-fetch result after save:', { reFetchSuccess, reFetchedProfile }); // Debugging: log re-fetched profile
+                    if (reFetchSuccess && reFetchedProfile) {
+                      const displayedUsername = document.getElementById('displayedUsername');
+                      const profileUsernameInput = document.getElementById('profileUsername');
+                      if (displayedUsername) {
+                        displayedUsername.textContent = reFetchedProfile.username || currentUser.email;
+                      }
+                      if (profileUsernameInput) {
+                        profileUsernameInput.value = reFetchedProfile.username || currentUser.email;
+                      }
+                      // After saving, re-check and re-render achievements
+                      await checkAndGrantAchievements(currentUser.uid, currentUser.email); // Re-check for username change achievement
+                      const { success: finalFetchSuccess, profile: finalFetchedProfile } = await getUserProfile(currentUser.uid);
+                      if (finalFetchSuccess && finalFetchedProfile) {
+                        renderAchievements(finalFetchedProfile.achievements, 'achievementsGrid');
+                      }
+                    }
+                  } else {
+                    alert('Failed to save profile changes. Please try again.');
+                  }
+                } else {
+                  alert('You must be logged in to save profile changes.');
+                }
+              });
+            }
+            break;
+          case 'historyNavLink':
+            showContentSection(historyContentDiv);
+            const currentUserForHistory = auth.currentUser;
+            if (currentUserForHistory) {
+              await renderHistoryContent(currentUserForHistory.uid);
+            }
+            break;
+          default:
+            // Do nothing or handle other cases
+            break;
+        }
+      }
+    });
+  });
+
+  // Handle task saving logic
+  async function handleSaveTask() {
+    const taskName = document.getElementById('taskNameInput').value;
+    const totalHours = parseFloat(document.getElementById('hoursToCompleteInput').value);
+    const frequency = document.getElementById('goalTypeSelect').value;
+
+    if (!taskName || isNaN(totalHours) || totalHours <= 0) {
+      alert('Please fill in all task details correctly.');
+      return;
+    }
+
+    const taskColor = taskColorPalette[currentTaskColorIndex];
+    currentTaskColorIndex = (currentTaskColorIndex + 1) % taskColorPalette.length;
+
+    const currentUser = auth.currentUser; // Get current user at the beginning of the function
+    console.log('handleSaveTask - currentUser:', currentUser ? currentUser.uid : 'null');
+    if (currentUser) {
+      // Increment task counter and get the new count
+      const { success: counterSuccess, newCount } = await incrementTaskCounter(currentUser.uid);
+      if (!counterSuccess) {
+        console.error('Failed to increment task counter.');
+        alert('Failed to save task due to counter error. Please try again.');
+        return;
+      }
+
+      const displayId = `${currentUser.uid.substring(0, 5)}-${taskName.replace(/\s/g, '').substring(0, 5)}-${newCount}`;
+
+      // Calculate start and end dates
+      const startDate = new Date();
+      let endDate = new Date(startDate);
+      if (frequency === 'weekLong') {
+        endDate.setDate(startDate.getDate() + 7);
+      } else if (frequency === 'monthLong') {
+        endDate.setMonth(startDate.getMonth() + 1);
+      }
+
+      const taskData = {
+        taskName,
+        totalHours,
+        frequency,
+        taskColor,
+        currentProgress: 0, // Initialize current progress to 0
+        createdAt: startDate.toISOString(),
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        displayId, // Add the generated display ID to task data
+      };
+
+      const { success } = await addTask(currentUser.uid, taskData);
+      if (success) {
+        alert('Task saved successfully!');
+        // Clear form fields
+        document.getElementById('taskNameInput').value = '';
+        document.getElementById('hoursToCompleteInput').value = '';
+        document.getElementById('goalTypeSelect').value = 'weekLong'; // Reset to weekLong
+
+        // Hide the modal after successful save
+        if (createTaskModal) {
+          createTaskModal.style.display = 'none';
+        }
+
+        // Ensure Home content div is visible and active BEFORE rendering tasks
+        showContentSection(homeContentDiv);
+
+        // Refresh tasks on the home page after successful save
+        renderHomeContent(currentUser.uid); // Re-enabled: refresh tasks after save
+
+        // Ensure Home tab is active and slider is updated
+        navItems.forEach(nav => nav.classList.remove('active'));
+        homeNavLink.classList.add('active');
+        updateSliderPosition(homeNavLink);
+
+      } else {
+        alert('Failed to save task. Please try again.');
+      }
+    } else {
+      alert('You must be logged in to save a task.');
+    }
+  }
+
+  // Handle task editing logic
+  async function handleEditTask() {
+    const taskId = document.getElementById('editTaskId').value;
+    const taskName = document.getElementById('editTaskNameInput').value;
+    const totalHours = parseFloat(document.getElementById('editHoursToCompleteInput').value);
+    const currentHours = parseFloat(document.getElementById('editCurrentHoursInput').value);
+    let selectedFrequency = document.getElementById('editGoalTypeSelect').value; // Get raw value from dropdown
+
+    console.log(`[handleEditTask] Raw Selected Frequency from dropdown: ${selectedFrequency}`);
+
+    if (!taskId || !taskName || isNaN(totalHours) || totalHours <= 0 || isNaN(currentHours) || currentHours < 0) {
+      alert('Please fill in all task details correctly, including current hours.');
+      return;
+    }
+
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      // Fetch the existing task to get its original startDate and other properties
+      const { success: fetchSuccess, tasks } = await getTasks(currentUser.uid);
+      if (!fetchSuccess || !tasks) {
+        console.error('[handleEditTask] Failed to fetch tasks for editing.');
+        alert('Failed to update task. Please try again.');
+        return;
+      }
+
+      const existingTask = tasks.find(task => task.id === taskId);
+      if (!existingTask) {
+        console.error('[handleEditTask] Existing task not found for ID:', taskId);
+        alert('Failed to update task: Task not found.');
+        return;
+      }
+
+      // Determine the effective frequency to use for update and comparison
+      let finalFrequencyForUpdate = selectedFrequency;
+
+      // If dropdown value is empty, use the frequency from the existing task
+      if (!finalFrequencyForUpdate) {
+        finalFrequencyForUpdate = existingTask.frequency;
+        console.log(`[handleEditTask] Selected Frequency was empty, defaulted to existing task\'s frequency: ${finalFrequencyForUpdate}`);
+      }
+
+      // Normalize finalFrequencyForUpdate to 'weekLong' or 'monthLong' for consistency
+      if (finalFrequencyForUpdate === 'weekly') {
+        finalFrequencyForUpdate = 'weekLong';
+      } else if (finalFrequencyForUpdate === 'monthly') {
+        finalFrequencyForUpdate = 'monthLong';
+      }
+
+      // Normalize existingTask.frequency for comparison purposes
+      let normalizedExistingFrequency = existingTask.frequency;
+      if (normalizedExistingFrequency === 'weekly') {
+        normalizedExistingFrequency = 'weekLong';
+      } else if (normalizedExistingFrequency === 'monthly') {
+        normalizedExistingFrequency = 'monthLong';
+      }
+
+      console.log(`[handleEditTask] Existing Task Frequency (from DB, normalized): ${normalizedExistingFrequency}`);
+      console.log(`[handleEditTask] New Selected Frequency (after default/normalization): ${finalFrequencyForUpdate}`);
+      console.log(`[handleEditTask] Frequency changed condition (comparison): ${normalizedExistingFrequency !== finalFrequencyForUpdate}`);
+
+      let updatedStartDate = existingTask.startDate;
+      let updatedEndDate = existingTask.endDate;
+
+      // Recalculate endDate only if the *normalized* frequency has truly changed
+      if (normalizedExistingFrequency !== finalFrequencyForUpdate) {
+        const startDateTime = new Date(existingTask.startDate); // Use existing start date
+        let newCalculatedEndDate = new Date(startDateTime); // Use a distinct variable for calculation
+        console.log(`[handleEditTask] Start Date Time for recalculation: ${startDateTime.toISOString()}`);
+        console.log(`[handleEditTask] Initial newCalculatedEndDate before modification: ${newCalculatedEndDate.toISOString()}`);
+
+        if (finalFrequencyForUpdate === 'weekLong') { // Use finalFrequencyForUpdate here
+          newCalculatedEndDate.setDate(startDateTime.getDate() + 7);
+          console.log(`[handleEditTask] Frequency is weekLong. New End Date after setDate: ${newCalculatedEndDate.toISOString()}`);
+        } else if (finalFrequencyForUpdate === 'monthLong') { // Use finalFrequencyForUpdate here
+          newCalculatedEndDate.setMonth(startDateTime.getMonth() + 1);
+          console.log(`[handleEditTask] Frequency is monthLong. New End Date after setMonth: ${newCalculatedEndDate.toISOString()}`);
+        }
+        updatedEndDate = newCalculatedEndDate.toISOString(); // Assign the updated date here
+        console.log(`[handleEditTask] Final updatedEndDate (ISO string): ${updatedEndDate}`);
+      }
+
+      const updatedData = {
+        taskName,
+        totalHours,
+        currentProgress: currentHours,
+        frequency: finalFrequencyForUpdate, // Save the normalized frequency
+        startDate: updatedStartDate,
+        endDate: updatedEndDate,
+      };
+
+      const { success, status } = await updateTask(currentUser.uid, taskId, updatedData);
+      if (success) {
+        alert('Task updated successfully!');
+        editTaskModal.style.display = 'none';
+        showContentSection(homeContentDiv);
+        renderHomeContent(currentUser.uid);
+
+        if (status !== 'active') {
+          await renderHistoryContent(currentUser.uid);
+        }
+
+        navItems.forEach(nav => nav.classList.remove('active'));
+        homeNavLink.classList.add('active');
+        updateSliderPosition(homeNavLink);
+      } else {
+        alert('Failed to update task. Please try again.');
+      }
+    } else {
+      alert('You must be logged in to edit a task.');
+    }
+  }
+
+  // Initial call to render home content when the page loads, if home is the default active tab
+  // This ensures tasks are loaded on initial page access.
+  // renderHomeContent(); // Removed to prevent duplicate renders on page load
 
   // Initial call to setupThemeToggle to apply saved theme and attach listener if on profile page initially
   // This ensures the toggle is functional even if the profile page is the first viewed page after reload
